@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import mplotutils as mpu
 import numpy as np
 from matplotlib.path import Path
+from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 
 def one_map_flat(
     da,
@@ -17,6 +18,7 @@ def one_map_flat(
     coastline_kws=None,
     add_land=False,
     land_kws=None,
+    colorbar=False,
     plotfunc="pcolormesh",
     **kwargs,
 ):
@@ -61,6 +63,8 @@ def one_map_flat(
         rasterized=True,
         extend="both",
         levels=levels,
+        add_labels=False
+        
     )
     # allow to override the defaults
     opt.update(kwargs)
@@ -97,6 +101,20 @@ def one_map_flat(
     s.set_lw(0.5)
     s.set_color("0.5")
 
+    if colorbar:
+        factor = 1
+        colorbar_opt = dict(
+            mappable=h,
+            ax1=ax,
+            size=0.05, #height
+            shrink=0.05 * factor, #width
+            orientation="horizontal",
+            pad=0.16, #interval
+        )
+        cbar = mpu.colorbar(**colorbar_opt)
+#        cbar.set_label('C', labelpad=1, size=9)
+        cbar.ax.tick_params(labelsize=9)
+    
     ax.set_global()
 
     return h
@@ -150,23 +168,7 @@ def coastlines(ax, color="0.1", lw=1, zorder=1.2, **kwargs):
     """
     ax.coastlines(color=color, lw=lw, zorder=zorder, *kwargs)
     
-def coastlines(ax, color="0.1", lw=1, zorder=1.2, **kwargs):
-    """plot coastlines on a cartopy GeoAxes
 
-    Parameters
-    ----------
-    ax : cartopy.GeoAxes
-        GeoAxes to plot the coastlines.
-    color : matplotlib color, default: "0.1"
-        Color the plot the coastlines.
-    lw : float, default: 0
-        With of the edge. Set to 0 to avoid overlaps with the land and coastlines.
-    zorder : float, default: 1.2
-        Zorder of the ocean mask - slightly more than the ocean.
-    **kwargs : keyword arguments
-        Additional keyword arguments to be passed to ax.add_feature.
-    """
-    ax.coastlines(color=color, lw=lw, zorder=zorder, *kwargs)
 
 def hatch_map(ax, da, hatch, label, invert=False, linewidth=0.25, color="0.1"):
     """add hatch pattern to a cartopy map
@@ -234,6 +236,7 @@ def hatch_map(ax, da, hatch, label, invert=False, linewidth=0.25, color="0.1"):
         extend="neither",
         transform=ccrs.PlateCarree(),
         add_colorbar=False,
+        add_labels=False
     )
 
     return legend_handle        
@@ -520,3 +523,537 @@ def at_warming_level_one(
 
     if colorbar:
         return cbar
+    
+
+def one_map_region(
+    da,
+    ax,
+    levels=None,
+    mask_ocean=False,
+    ocean_kws=None,
+    add_coastlines=True,
+    coastline_kws=None,
+    add_land=False,
+    land_kws=None,
+    add_gridlines=False,
+    colorbar = False,
+    plotfunc="pcolormesh",
+    extents=None,
+    interval=None,
+    add_river=False,
+    add_lake=False,
+    add_stock=False,
+    **kwargs,
+):
+    """plot 2D (=flat) DataArray on a cartopy GeoAxes
+
+    Parameters
+    ----------
+    da : DataArray
+        DataArray to plot.
+    ax : cartopy.GeoAxes
+        GeoAxes to plot da on.
+    levels : int or list-like object, optional
+        Split the colormap (cmap) into discrete color intervals.
+    mask_ocean : bool, default: False
+        If true adds the ocean feature.
+    ocean_kws : dict, default: None
+        Arguments passed to ``ax.add_feature(OCEAN)``.
+    add_coastlines : bool, default: None
+        If None or true plots coastlines. See coastline_kws.
+    coastline_kws : dict, default: None
+        Arguments passed to ``ax.coastlines()``.
+    add_land : bool, default: False
+        If true adds the land feature. See land_kws.
+    land_kws : dict, default: None
+        Arguments passed to ``ax.add_feature(LAND)``.
+    add_stock: bool, default: False
+        If true add the stock image
+    plotfunc : {"pcolormesh", "contourf"}, default: "pcolormesh"
+        Which plot function to use
+    add_gridlines : bool, default: False
+        If None or true plots gridlines
+    extents: List, default: '[-180, 180, -90 , 90]' decimal degree global
+        The region specific in the map follows: '[lonMin, lonMax, LatMin, LatMax]'
+    interval: List, default: '[30, 60]' 
+        The intervals in the map follows: '[lonInterval, latInterval]'
+    **kwargs : keyword arguments
+        Further keyword arguments passed to the plotting function.
+
+    Returns
+    -------
+    h : handle (artist)
+    The same type of primitive artist that the wrapped matplotlib
+    function returns
+    """
+
+    # ploting options
+    opt = dict(
+        transform=ccrs.PlateCarree(),
+        add_colorbar=False,
+        rasterized=True,
+        extend="both",
+        levels=levels,
+        add_labels=False
+    )
+    # allow to override the defaults
+    opt.update(kwargs)
+
+    if land_kws is None:
+        land_kws = dict(fc="0.8", ec="none")
+
+    if add_land:
+        ax.add_feature(cfeature.LAND, **land_kws)
+    if add_river:
+        ax.add_feature(cfeature.RIVERS,lw=0.25)#####添加河流######
+    if add_lake:
+        ax.add_feature(cfeature.LAKES)######添加湖泊#####
+    if add_stock:
+        ax.stock_img()
+    
+    if "contour" in plotfunc:
+        opt.pop("rasterized", None)
+        da = mpu.cyclic_dataarray(da)
+        plotfunc = getattr(da.plot, plotfunc)
+    elif plotfunc == "pcolormesh":
+        plotfunc = getattr(da.plot, plotfunc)
+    else:
+        raise ValueError(f"unkown plotfunc: {plotfunc}")
+
+    h = plotfunc(ax=ax, **opt)
+
+    if mask_ocean:
+        ocean_kws = {} if ocean_kws is None else ocean_kws
+        _mask_ocean(ax, **ocean_kws)
+
+    if coastline_kws is None:
+        coastline_kws = dict()
+
+    if add_coastlines:
+        coastlines(ax, **coastline_kws)
+
+    # make the spines a bit finer
+    s = ax.spines["geo"]
+    s.set_lw(0.5)
+    s.set_color("0.5")
+    if interval is not None:
+        ax.set_extent(extents, crs=ccrs.PlateCarree())
+    
+
+    # add the x y ticks
+    if interval is not None:
+        ax.set_xticks(np.arange(extents[0], extents[1] + interval[0], interval[0]))
+        ax.set_xticks(np.arange(extents[0], extents[1] + interval[0] / 2, interval[0] / 2), minor=True)
+        ax.set_yticks(np.arange(extents[2], extents[3] + interval[1], interval[1]))
+        ax.set_yticks(np.arange(extents[2], extents[3] + interval[1] / 2, interval[1] / 2), minor=True)
+        ax.xaxis.set_major_formatter(LongitudeFormatter())
+        ax.yaxis.set_major_formatter(LatitudeFormatter())
+
+
+    # add the gridlines
+    if add_gridlines:
+        ax.gridlines(linestyle='--', xlocs=np.arange(extents[0], extents[1] + interval[0] / 2, interval[0] / 2), 
+                     ylocs=np.arange(extents[2], extents[3] + interval[1] / 2, interval[1] / 2))
+        
+    if colorbar:
+        factor = 1
+        colorbar_opt = dict(
+            mappable=h,
+            ax1=ax,
+            size=0.05, #height
+            shrink=0.05 * factor, #width
+            orientation="horizontal",
+            pad=0.16, #interval
+        )
+        cbar = mpu.colorbar(**colorbar_opt)
+#        cbar.set_label('C', labelpad=1, size=9)
+        cbar.ax.tick_params(labelsize=9)
+        
+    return h
+
+def one_map_global_line(
+    da,
+    ax,
+    levels=None,
+    mask_ocean=False,
+    ocean_kws=None,
+    add_coastlines=True,
+    coastline_kws=None,
+    add_land=False,
+    land_kws=None,
+    colorbar = False,
+    plotfunc="pcolormesh",
+    **kwargs,
+):
+    """plot 2D (=flat) DataArray on a cartopy GeoAxes
+
+    Parameters
+    ----------
+    da : DataArray
+        DataArray to plot.
+    ax : cartopy.GeoAxes
+        GeoAxes to plot da on.
+    levels : int or list-like object, optional
+        Split the colormap (cmap) into discrete color intervals.
+    mask_ocean : bool, default: False
+        If true adds the ocean feature.
+    ocean_kws : dict, default: None
+        Arguments passed to ``ax.add_feature(OCEAN)``.
+    add_coastlines : bool, default: None
+        If None or true plots coastlines. See coastline_kws.
+    coastline_kws : dict, default: None
+        Arguments passed to ``ax.coastlines()``.
+    add_land : bool, default: False
+        If true adds the land feature. See land_kws.
+    land_kws : dict, default: None
+        Arguments passed to ``ax.add_feature(LAND)``.
+    plotfunc : {"pcolormesh", "contourf"}, default: "pcolormesh"
+        Which plot function to use
+    add_gridlines : bool, default: False
+        If None or true plots gridlines
+    **kwargs : keyword arguments
+        Further keyword arguments passed to the plotting function.
+
+    Returns
+    -------
+    h : handle (artist)
+    The same type of primitive artist that the wrapped matplotlib
+    function returns
+    """
+
+    # ploting options
+    opt = dict(
+        transform=ccrs.PlateCarree(),
+        add_colorbar=False,
+        rasterized=True,
+        extend="both",
+        levels=levels,
+        add_labels=False
+    )
+    # allow to override the defaults
+    opt.update(kwargs)
+
+    if land_kws is None:
+        land_kws = dict(fc="0.8", ec="none")
+
+    if add_land:
+        ax.add_feature(cfeature.LAND, **land_kws)
+
+    if "contour" in plotfunc:
+        opt.pop("rasterized", None)
+        da = mpu.cyclic_dataarray(da)
+        plotfunc = getattr(da.plot, plotfunc)
+    elif plotfunc == "pcolormesh":
+        plotfunc = getattr(da.plot, plotfunc)
+    else:
+        raise ValueError(f"unkown plotfunc: {plotfunc}")
+
+    h = plotfunc(ax=ax, **opt)
+
+    if mask_ocean:
+        ocean_kws = {} if ocean_kws is None else ocean_kws
+        _mask_ocean(ax, **ocean_kws)
+
+    if coastline_kws is None:
+        coastline_kws = dict()
+
+    if add_coastlines:
+        coastlines(ax, **coastline_kws)
+
+    # make the spines a bit finer
+    s = ax.spines["geo"]
+    s.set_lw(0.5)
+    s.set_color("0.5")
+
+
+    # add the gridlines
+    ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+              linewidth=1, color='gray', alpha=0.5, linestyle='--')
+        
+    if colorbar:
+        factor = 1
+        colorbar_opt = dict(
+            mappable=h,
+            ax1=ax,
+            size=0.05, #height
+            shrink=0.05 * factor, #width
+            orientation="horizontal",
+            pad=0.16, #interval
+        )
+        cbar = mpu.colorbar(**colorbar_opt)
+#        cbar.set_label('C', labelpad=1, size=9)
+        cbar.ax.tick_params(labelsize=9)
+        
+    return h
+
+def one_map_china(
+    da,
+    ax,
+    levels=None,
+    mask_ocean=False,
+    ocean_kws=None,
+    add_coastlines=True,
+    coastline_kws=None,
+    add_land=False,
+    land_kws=None,
+    add_gridlines=False,
+    colorbar = False,
+    plotfunc="pcolormesh",
+    add_river=False,
+    add_lake=False,
+    add_stock=False,
+    **kwargs,
+):
+    """plot 2D (=flat) DataArray on a cartopy GeoAxes
+
+    Parameters
+    ----------
+    da : DataArray
+        DataArray to plot.
+    ax : cartopy.GeoAxes
+        GeoAxes to plot da on.
+    levels : int or list-like object, optional
+        Split the colormap (cmap) into discrete color intervals.
+    mask_ocean : bool, default: False
+        If true adds the ocean feature.
+    ocean_kws : dict, default: None
+        Arguments passed to ``ax.add_feature(OCEAN)``.
+    add_coastlines : bool, default: None
+        If None or true plots coastlines. See coastline_kws.
+    coastline_kws : dict, default: None
+        Arguments passed to ``ax.coastlines()``.
+    add_land : bool, default: False
+        If true adds the land feature. See land_kws.
+    land_kws : dict, default: None
+        Arguments passed to ``ax.add_feature(LAND)``.
+    add_stock: bool, default: False
+        If true add the stock image        
+    plotfunc : {"pcolormesh", "contourf"}, default: "pcolormesh"
+        Which plot function to use
+    add_gridlines : bool, default: False
+        If None or true plots gridlines
+    **kwargs : keyword arguments
+        Further keyword arguments passed to the plotting function.
+
+    Returns
+    -------
+    h : handle (artist)
+    The same type of primitive artist that the wrapped matplotlib
+    function returns
+    """
+
+    # ploting options
+    opt = dict(
+        transform=ccrs.PlateCarree(),
+        add_colorbar=False,
+        rasterized=True,
+        extend="both",
+        levels=levels,
+        add_labels=False
+    )
+    # allow to override the defaults
+    opt.update(kwargs)
+
+    if land_kws is None:
+        land_kws = dict(fc="0.8", ec="none")
+
+    if add_land:
+        ax.add_feature(cfeature.LAND, **land_kws)
+    if add_river:
+        ax.add_feature(cfeature.RIVERS,lw=0.25)#####添加河流######
+    if add_lake:
+        ax.add_feature(cfeature.LAKES)######添加湖泊#####
+    if add_stock:
+        ax.stock_img()
+    
+    if "contour" in plotfunc:
+        opt.pop("rasterized", None)
+        da = mpu.cyclic_dataarray(da)
+        plotfunc = getattr(da.plot, plotfunc)
+    elif plotfunc == "pcolormesh":
+        plotfunc = getattr(da.plot, plotfunc)
+    else:
+        raise ValueError(f"unkown plotfunc: {plotfunc}")
+
+    h = plotfunc(ax=ax, **opt)
+    add_dashline(ax, ec="black", linewidth=1)
+    add_china(ax, ec="black", fc="None", linewidth=1)
+#    h = add_china(ax=ax)
+    
+    if mask_ocean:
+        ocean_kws = {} if ocean_kws is None else ocean_kws
+        _mask_ocean(ax, **ocean_kws)
+
+    if coastline_kws is None:
+        coastline_kws = dict()
+
+    if add_coastlines:
+        coastlines(ax, **coastline_kws)
+
+    # make the spines a bit finer
+    s = ax.spines["geo"]
+    s.set_lw(0.5)
+    s.set_color("0.5")
+
+    ax.set_extent([70, 140, 15, 55], crs=ccrs.PlateCarree())
+    
+
+    # add the x y ticks
+
+    # ax.set_xticks(np.arange(70, 140 + 20, 20))
+    # ax.set_xticks(np.arange(70, 140 + 10, 10), minor=True)
+    # ax.set_yticks(np.arange(15, 55 + 20, 20))
+    # ax.set_yticks(np.arange(15, 55 + 10, 10), minor=True)
+    # ax.xaxis.set_major_formatter(LongitudeFormatter())
+    # ax.yaxis.set_major_formatter(LatitudeFormatter())
+    if colorbar:
+        factor = 1
+        colorbar_opt = dict(
+            mappable=h,
+            ax1=ax,
+            size=0.05, #height
+            shrink=0.05 * factor, #width
+            orientation="horizontal",
+            pad=0.16, #interval
+        )
+        cbar = mpu.colorbar(**colorbar_opt)
+#        cbar.set_label('C', labelpad=1, size=9)
+        cbar.ax.tick_params(labelsize=9)
+
+    # add the gridlines
+    if add_gridlines:
+        ax.gridlines(crs=ccrs.PlateCarree(), linestyle='--', xlocs=np.arange(70, 140 + 10, 10), draw_labels=True,
+                     ylocs=np.arange(15, 55 + 10, 10),  y_inline=False, x_inline=False,)
+        
+    return h
+
+import cartopy.io.shapereader as shpreader
+def add_china(ax, **kwargs):
+    '''
+    Plot the Chinese province map shapefile.
+
+    Parameters
+    ----------
+    ax : targate GeoAxes
+    **kwargs
+        Parameter when plot shapefile e.g. linewidth, edgecolor and facecolor etc.
+    '''
+    proj = ccrs.PlateCarree()
+    reader = shpreader.Reader('data/china.shp')
+    provinces = reader.geometries()
+    ax.add_geometries(provinces, proj, **kwargs)
+    reader.close()
+    
+def add_dashline(ax, **kwargs):
+    '''
+    Plot the Chinese dashline map shapefile.
+
+    Parameters
+    ----------
+    ax : targate GeoAxes
+    **kwargs
+        Parameter when plot dashline e.g. linewidth, edgecolor and facecolor etc.
+    '''
+    proj = ccrs.PlateCarree()
+    reader = shpreader.Reader("data/dashline.shp")
+    provinces = reader.geometries()
+    ax.add_geometries(provinces, proj, **kwargs)
+    reader.close()
+    
+def sub_china_map(
+    da,
+    ax,
+    levels=None,
+    add_coastlines=True,
+    coastline_kws=None,
+    add_land=False,
+    land_kws=None,
+    add_stock=False,
+    plotfunc="pcolormesh",
+    **kwargs,
+):
+    """plot 2D (=flat) DataArray on a cartopy GeoAxes
+
+    Parameters
+    ----------
+    da : DataArray
+        DataArray to plot.
+    ax : cartopy.GeoAxes
+        GeoAxes to plot da on.
+    levels : int or list-like object, optional
+        Split the colormap (cmap) into discrete color intervals.
+    add_coastlines : bool, default: None
+        If None or true plots coastlines. See coastline_kws.
+    coastline_kws : dict, default: None
+        Arguments passed to ``ax.coastlines()``.
+    add_land : bool, default: False
+        If true adds the land feature. See land_kws.
+    land_kws : dict, default: None
+        Arguments passed to ``ax.add_feature(LAND)``.
+    add_stock: bool, default: False
+        If true add the stock image        
+    plotfunc : {"pcolormesh", "contourf"}, default: "pcolormesh"
+        Which plot function to use
+    **kwargs : keyword arguments
+        Further keyword arguments passed to the plotting function.
+
+    Returns
+    -------
+    h : handle (artist)
+    The same type of primitive artist that the wrapped matplotlib
+    function returns
+    """
+
+    # ploting options
+    opt = dict(
+        transform=ccrs.PlateCarree(),
+        add_colorbar=False,
+        rasterized=True,
+        extend="both",
+        levels=levels,
+        add_labels=False
+        
+    )
+    # allow to override the defaults
+    opt.update(kwargs)
+
+    if land_kws is None:
+        land_kws = dict(fc="0.8", ec="none")
+
+    if add_land:
+        ax.add_feature(cfeature.LAND, **land_kws)
+
+    if "contour" in plotfunc:
+        opt.pop("rasterized", None)
+        da = mpu.cyclic_dataarray(da)
+        plotfunc = getattr(da.plot, plotfunc)
+    elif plotfunc == "pcolormesh":
+        plotfunc = getattr(da.plot, plotfunc)
+    else:
+        raise ValueError(f"unkown plotfunc: {plotfunc}")
+
+    h = plotfunc(ax=ax, **opt)
+
+    if coastline_kws is None:
+        coastline_kws = dict()
+
+    if add_coastlines:
+        coastlines(ax, **coastline_kws)
+    if add_stock:
+        ax.stock_img()
+
+    # make the spines a bit finer
+    s = ax.spines["geo"]
+    s.set_lw(0.5)
+    s.set_color("0.5")
+
+   
+    
+    ax.set_extent([104.5, 125, 0, 26])
+    ax.gridlines(draw_labels=False,x_inline=False, y_inline=False,
+                 linewidth=0.1, color='gray', alpha=0.8, 
+                 linestyle='--' )
+    add_dashline(ax, ec="black", linewidth=1)
+    add_china(ax, ec="black", fc="None", linewidth=1)
+
+    return h
