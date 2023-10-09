@@ -1057,3 +1057,45 @@ def sub_china_map(
     add_china(ax, ec="black", fc="None", linewidth=1)
 
     return h
+
+def add_sta(ax, da, xlim, lat, **kwargs):
+    '''
+    Plot the Chinese province map shapefile.
+
+    Parameters
+    ----------
+    ax : targate GeoAxes
+    xlim : [low, high]
+    lat: 'lat', 'y'
+    **kwargs
+        Parameter when plot shapefile e.g. linewidth, edgecolor and facecolor etc.
+    '''
+
+    ax.patch.set_alpha(0)
+    # Calculate the median and standard deviation
+    MED = np.nanmean(da.values, axis=1)
+    STD = np.nanstd(da.values, axis=1)
+    n = np.nansum(da.values >= 0, axis=1)
+    margin_of_error = 1.96 * (STD / np.sqrt(n))
+    if lat == 'lat':
+        ydata = da.lat.data
+    elif lat == 'y':
+        ydata = da.y.data
+    
+    ax.tick_params(top=False, bottom=False,
+                   left=False, right=False,
+                   labeltop=False, labelbottom=True,
+                   labelleft=False, labelright=False)
+    # Plots the results for the main area, with the other areas extremely close or at 0.
+    ax.plot(MED, ydata, c='#1f77b4', linewidth=0.75, label='Median', zorder=10)
+    ax.fill_betweenx(ydata, MED + STD, MED - STD, alpha=0.12, linewidth=0, color='#1f77b4',
+                     label='1 std', zorder=10)
+    #ax2.yaxis.set_major_formatter(LatitudeFormatter())
+    ax.set_ylim([-60, 90])
+    ax.set_xlim(xlim)
+    
+    ax.set_yticks(np.arange(-60, 91, 30))
+    ax.spines['top'].set_color('#b0b0b0')
+    ax.spines['right'].set_color('#b0b0b0')
+    ax.spines['bottom'].set_color('#b0b0b0')
+    ax.spines['left'].set_color('#b0b0b0')
