@@ -107,9 +107,25 @@ plot.at_warming_level_one(at_warming_c=at_warming_c, unit="Change (times as freq
 ```
 
 
-​    
 ![png](https://imagecollection.oss-cn-beijing.aliyuncs.com/legion/output_12_1.png)
-​    
+
+```    
+import xarray
+import salem
+file_name=r'D:\Onedrive\Acdemic\DL_grace\data\gap_filling\v6_result\drop_data.nc'
+ds=xarray.open_dataset(file_name, engine='netcdf4')
+fig = plt.figure()
+proj = ccrs.PlateCarree() #ccrs.Robinson()ccrs.Mollweide()Mollweide()
+ax = fig.add_axes([0.1, 0.1, 0.9, 0.9], projection=proj)
+levels = np.linspace(-30, 30, num=19)
+plot.one_map_flat(ds['data'][0], ax, levels=levels, cmap="RdBu",  mask_ocean=True, add_coastlines=True, add_land=False,  colorbar=True, plotfunc="pcolormesh")
+ax.set_ylim([-60, 90])
+ax.set_title("test nc", fontsize=15, pad=8)
+ax2 = fig.add_axes([1.05, 0.3, 0.15, 0.5])
+plot.add_sta(ax2, ds['data'][0].salem.roi(shape=shpfile), [-80,20], 'lat')
+```
+
+![](https://imagecollection.oss-cn-beijing.aliyuncs.com/office/20231211232520.png)
 
 
 ## Regional
@@ -330,7 +346,7 @@ plot.hatch_map(ax, pmaskregion, 3 * "/", label="Lack of model agreement", invert
 
 
 ## China
-    
+
 
 
 中国
