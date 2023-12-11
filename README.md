@@ -112,7 +112,7 @@ plot.at_warming_level_one(at_warming_c=at_warming_c, unit="Change (times as freq
 ```    
 import xarray
 import salem
-file_name=r'D:\Onedrive\Acdemic\DL_grace\data\gap_filling\v6_result\drop_data.nc'
+file_name='data/drop_data.nc'
 ds=xarray.open_dataset(file_name, engine='netcdf4')
 fig = plt.figure()
 proj = ccrs.PlateCarree() #ccrs.Robinson()ccrs.Mollweide()Mollweide()
