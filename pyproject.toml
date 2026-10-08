@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plot-function"
+version = "0.2.0"
+description = "From NetCDF to beautiful maps, with xarray, Cartopy, and Matplotlib."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{name = "Longhao Wang"}]
+keywords = ["netcdf", "climate", "cartopy", "xarray", "visualization"]
+dependencies = [
+  "numpy>=1.24",
+  "matplotlib>=3.7",
+  "cartopy>=0.22",
+  "xarray>=2023.1",
+  "netCDF4>=1.6",
+  "mplotutils>=0.6",
+]
+
+[project.optional-dependencies]
+notebook = ["jupyterlab>=4", "ipykernel>=6"]
+legacy = ["salem>=0.3.9", "geopandas>=0.14", "rioxarray>=0.15", "cmaps>=2", "scikit-image>=0.22"]
+dev = ["pytest>=8", "ruff>=0.9", "build>=1"]
+
+[project.urls]
+Homepage = "https://github.com/GISWLH/plot-function"
+Issues = "https://github.com/GISWLH/plot-function/issues"
+
+[project.scripts]
+plot-function = "plot_function.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["plot_function*", "utils*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
