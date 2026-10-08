@@ -53,6 +53,70 @@ python examples/quickstart.py
 
 脚本在 `examples/output/` 中生成明确标注为**合成数据**的 NetCDF 文件和 PNG 图片，仅需核心依赖。
 
+## 科研图形：统计、地理背景与显著性
+
+通过可复用的配置对象组合完整图形，继续使用 NetCDF 输入和可编辑的 Matplotlib 对象。
+
+```python
+from plot_function import plot_map, Profile, Distribution, MapFeatures
+
+result = plot_map(
+    "data/ERA5temp_1978_monthly.nc", "t2m",
+    isel={"time": 6}, offset=-273.15, units="°C",
+    projection="platecarree", extent=[92, 142, 8, 53], cmap="RdYlBu_r",
+    profiles=[Profile(position="right", style="band"),
+              Profile(position="top", style="line", weights="coslat")],
+    distribution=Distribution(style="bars", weights="coslat", color="map"),
+    features=MapFeatures(rivers=True, lakes=True, borders=True, resolution="50m"),
+    title="East Asia · July 1978", figsize=(12, 9),
+    output="research-figure.png",
+)
+```
+
+| 图层 | 样式与控制 |
+| :--- | :--- |
+| 边缘统计剖面 | 右侧 / 顶部；折线 `line`、带状 `band`、条形 `bars`；均值或中位数；空间标准差或四分位距；参考线 |
+| 分布嵌图 | 默认左下角；柱状 `bars`、阶梯 `step`、频率折线 `line`、累积分布 `ecdf`；可调分箱、位置和均值标线 |
+| 权重 | 等格点、纬度余弦，或严格对齐的自定义格点权重 |
+| 显著性 | 点状 `stipple`、纹理 `hatch`、边界 `contour`；输入 p 值或布尔掩膜；可选 BH FDR 校正 |
+| 地理细节 | 河流、湖泊、边界、陆地 / 海洋背景；Natural Earth 110m、50m、10m 分辨率 |
+| 图形组合 | 子图标签、统一色标、可编辑坐标轴，以及 PNG/PDF/SVG 输出 |
+
+![ERA5 全球地图，右侧为均值与空间标准差剖面，左下角为加权直方图](docs/assets/journal-global.png)
+
+<p align="center"><img src="docs/assets/journal-regional.png" width="760" alt="东亚气温图，包含均值与中位数剖面、分布嵌图、河流、湖泊和边界"></p>
+
+**显著性必须来自明确的统计检验。** 请提供适合研究数据的检验结果；本库不会根据颜色或样本数自动猜测显著性。
+
+```python
+from plot_function import Significance
+
+# p_values 为与地图规范化网格完全一致的二维 DataArray。
+# 也可传入 NetCDF 路径，并指定 variable、sel、isel。
+layer = result.add_significance(
+    Significance(p_values, style="stipple", alpha=0.05, correction="fdr_bh")
+)
+print(layer.statistics.attrs)  # 检验格点数、显著格点数、临界 p 值。
+```
+
+下图使用**固定随机种子的合成高斯实验**，并非 ERA5 数据的显著性结论。三个面板使用相同的 p 值与 FDR 判定，仅改变显示样式。
+
+![合成实验中的点状、纹理和边界显著性标记，以及三种剖面和嵌图样式](docs/assets/journal-significance.png)
+
+```bash
+python examples/journal_gallery.py
+# 完全离线：不绘制海岸线及其他需要下载的地理图层。
+python examples/journal_gallery.py --offline --output examples/output/journal
+
+plot-function plot data/ERA5temp_1978_monthly.nc --variable t2m \
+  --isel '{"time": 6}' --profile right --profile-style band \
+  --distribution line --coslat --no-coastlines --output summary.png
+```
+
+统计范围为 `extent` 内有效格点的中心；未设置范围时使用全部场。SD/IQR 带表示**空间变异，不是置信区间**。纬度余弦权重仅在规则经纬度格网上近似面积权重；不规则网格应提供真实格点面积。剖面使用地理坐标尺度；若需要与地图坐标轴直接对齐，请使用 Plate Carrée 投影，曲线投影的几何关系不同。`line` 分布图是直方图的频率折线，不是核密度估计。即使 `coastlines=False`，启用其他地理图层仍可能触发首次下载。
+
+完整参数、FDR 假设、嵌图位置、返回统计量与自定义布局见[科研绘图指南](docs/RESEARCH_FIGURES.md)。
+
 ## 示例画廊
 
 以下四幅图均由 [`examples/gallery.py`](examples/gallery.py) 从仓库内的 **1978 年 ERA5 月平均 2 米气温 NetCDF 文件**生成，无需额外的矢量或栅格输入文件。

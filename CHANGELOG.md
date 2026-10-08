@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.2.0 — Unreleased
+## 0.3.0 — Unreleased
+
+- Add right/top profiles with line, spread-band, and bar styles.
+- Add bars, steps, frequency polygons, and ECDF inset distributions.
+- Add explicit spatial weighting, summary scopes, and inspectable xarray results.
+- Add aligned p-value/mask overlays with stippling, hatching, contour boundaries,
+  and optional Benjamini–Hochberg FDR correction.
+- Add configurable Natural Earth features, panel labels, and CLI controls.
+- Add three white-background research compositions and multilingual guidance.
+
+## 0.2.0
 
 - Add an installable `plot_function` package and `plot-function` CLI.
 - Add NetCDF variable selection, geographic coordinate recognition, explicit

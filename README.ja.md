@@ -53,6 +53,70 @@ python examples/quickstart.py
 
 このスクリプトは、**合成データ**と明記した NetCDF ファイルと PNG を `examples/output/` に生成します。コア依存関係だけで動作します。
 
+## 研究図版：統計・地理情報・有意性
+
+再利用できる設定オブジェクトで、統計と地図を一つの図版にまとめられます。NetCDF 入力と、編集可能な Matplotlib オブジェクトはそのまま利用できます。
+
+```python
+from plot_function import plot_map, Profile, Distribution, MapFeatures
+
+result = plot_map(
+    "data/ERA5temp_1978_monthly.nc", "t2m",
+    isel={"time": 6}, offset=-273.15, units="°C",
+    projection="platecarree", extent=[92, 142, 8, 53], cmap="RdYlBu_r",
+    profiles=[Profile(position="right", style="band"),
+              Profile(position="top", style="line", weights="coslat")],
+    distribution=Distribution(style="bars", weights="coslat", color="map"),
+    features=MapFeatures(rivers=True, lakes=True, borders=True, resolution="50m"),
+    title="East Asia · July 1978", figsize=(12, 9),
+    output="research-figure.png",
+)
+```
+
+| レイヤー | スタイルと設定 |
+| :--- | :--- |
+| 周辺プロファイル | 右側 / 上側。折れ線 `line`、帯 `band`、棒 `bars`。平均・中央値、空間標準偏差・四分位範囲、基準線 |
+| 分布の挿入図 | 初期位置は左下。棒 `bars`、階段 `step`、度数折れ線 `line`、累積分布 `ecdf`。ビン・位置・平均線を変更可能 |
+| 重み付け | 等格子、緯度の余弦、または厳密に座標が一致する格子重み |
+| 有意性 | 点 `stipple`、ハッチ `hatch`、境界線 `contour`。p 値または真偽値マスクを入力し、BH FDR 補正も選択可能 |
+| 地理情報 | 河川、湖沼、境界、陸海の背景。Natural Earth 110m / 50m / 10m |
+| 図版構成 | パネル記号、共通カラースケール、編集可能な軸、PNG/PDF/SVG 出力 |
+
+![平均と空間標準偏差の右側プロファイル、加重ヒストグラムを加えた ERA5 全球図](docs/assets/journal-global.png)
+
+<p align="center"><img src="docs/assets/journal-regional.png" width="760" alt="平均・中央値のプロファイル、分布の挿入図、河川・湖沼・境界を加えた東アジアの図"></p>
+
+**有意性は適切な統計検定の結果から指定します。** このライブラリは、色や標本数だけから有意性を推測しません。
+
+```python
+from plot_function import Significance
+
+# p_values は、地図の正規化された格子と一致する 2 次元 DataArray です。
+# NetCDF パスと variable、sel、isel を指定することもできます。
+layer = result.add_significance(
+    Significance(p_values, style="stipple", alpha=0.05, correction="fdr_bh")
+)
+print(layer.statistics.attrs)  # 検定した格子数、有意な格子数、臨界 p 値。
+```
+
+下の比較は、**乱数シードを固定した合成ガウス実験**です。ERA5 データの有意性を示すものではありません。全パネルで同じ p 値と FDR 判定を使用し、表示方法だけを変えています。
+
+![合成実験による点・ハッチ・境界線の有意性表示と、3 種類のプロファイル・挿入図](docs/assets/journal-significance.png)
+
+```bash
+python examples/journal_gallery.py
+# 完全オフライン。海岸線やダウンロードを伴う地理レイヤーを省略します。
+python examples/journal_gallery.py --offline --output examples/output/journal
+
+plot-function plot data/ERA5temp_1978_monthly.nc --variable t2m \
+  --isel '{"time": 6}' --profile right --profile-style band \
+  --distribution line --coslat --no-coastlines --output summary.png
+```
+
+統計は `extent` 内に中心がある有効な格子から計算し、範囲未指定の場合は全体を使います。SD/IQR の帯は**空間的なばらつきであり、信頼区間ではありません**。緯度の余弦は規則的な経緯度格子における面積重みの近似です。不規則な格子には実際の格子面積を指定してください。プロファイルは地理座標の尺度を使います。地図の軸と直接対応させるには Plate Carrée 図法を使い、曲線を伴う投影では幾何形状が異なる点に注意してください。分布の `line` はヒストグラムの度数折れ線で、カーネル密度推定ではありません。`coastlines=False` でも、他の地理レイヤーを有効にすると初回ダウンロードが必要になる場合があります。
+
+全オプション、FDR の前提、挿入図の配置、計算結果の取得、独自レイアウトは[研究図版ガイド](docs/RESEARCH_FIGURES.md)で説明しています。
+
 ## ギャラリー
 
 以下の 4 枚はすべて、リポジトリに含まれる **1978 年 ERA5 の月平均・地上 2 m 気温 NetCDF ファイル**から、[`examples/gallery.py`](examples/gallery.py) で生成しています。別途 Shapefile やラスターファイルを用意する必要はありません。

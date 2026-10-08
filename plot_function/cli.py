@@ -53,6 +53,23 @@ def parser():
         "--no-coastlines", action="store_true", help="Render without map-data downloads"
     )
     plot.add_argument("--dpi", type=int, default=180)
+    plot.add_argument("--profile", choices=["right", "top"], nargs="+")
+    plot.add_argument("--profile-style", choices=["line", "band", "bars"], default="band")
+    plot.add_argument("--distribution", choices=["bars", "step", "line", "ecdf"])
+    plot.add_argument("--coslat", action="store_true", help="Use cosine-latitude summary weights")
+    plot.add_argument("--rivers", action="store_true")
+    plot.add_argument("--lakes", action="store_true")
+    plot.add_argument("--borders", action="store_true")
+    plot.add_argument("--resolution", choices=["110m", "50m", "10m"], default="110m")
+    plot.add_argument("--pvalues", help="NetCDF file containing aligned, precomputed p-values")
+    plot.add_argument("--pvariable", help="P-value variable name")
+    plot.add_argument("--p-isel", type=_mapping, help="Integer selection for the p-value field")
+    plot.add_argument("--p-sel", type=_mapping, help="Label selection for the p-value field")
+    plot.add_argument(
+        "--significance-style", choices=["stipple", "hatch", "contour"], default="stipple"
+    )
+    plot.add_argument("--alpha", type=float, default=0.05)
+    plot.add_argument("--fdr", action="store_true", help="Apply BH FDR across visible valid cells")
     return root
 
 
@@ -72,11 +89,34 @@ def main(argv=None):
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         from .maps import plot_map
+        from .options import Distribution, MapFeatures, Profile, Significance
 
         options = vars(args).copy()
         options.pop("command")
         source = options.pop("file")
         options["coastlines"] = not options.pop("no_coastlines")
+        weights = "coslat" if options.pop("coslat") else None
+        style = options.pop("profile_style")
+        options["profiles"] = [
+            Profile(position=p, style=style, weights=weights) for p in options.pop("profile") or []
+        ]
+        distribution = options.pop("distribution")
+        options["distribution"] = (
+            Distribution(style=distribution, weights=weights) if distribution else None
+        )
+        options["features"] = MapFeatures(
+            **{name: options.pop(name) for name in ("rivers", "lakes", "borders", "resolution")}
+        )
+        pfile = options.pop("pvalues")
+        pspec = dict(
+            variable=options.pop("pvariable"),
+            isel=options.pop("p_isel"),
+            sel=options.pop("p_sel"),
+            style=options.pop("significance_style"),
+            alpha=options.pop("alpha"),
+            correction="fdr_bh" if options.pop("fdr") else "none",
+        )
+        options["significance"] = Significance(pfile, **pspec) if pfile else None
         result = plot_map(source, **options)
         plt.close(result.figure)
         print(f"Saved {args.output}")

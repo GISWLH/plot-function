@@ -123,3 +123,17 @@ cache and may download data when first imported.
 | CLI cannot be found | Activate the installation environment, or use `python -m plot_function`. |
 
 See the translated READMEs for the full getting-started workflow.
+
+## Statistical and geographic layers (0.3)
+
+`plot_map` additionally accepts `profiles` (one `Profile` or a list),
+`distribution=Distribution(...)`, `significance=Significance(...)`,
+`features=MapFeatures(...)`, and `panel_label='a'`. All default to `None`,
+preserving the original API's behavior.
+
+`MapResult` now exposes `.profiles` keyed by `right`/`top`, `.distribution`,
+`.significance` (a list), and `.feature_artists`. Statistical layers return a
+`LayerResult` with `.axes`, `.statistics`, and `.artists`. Incremental methods
+`add_profile`, `add_distribution`, `add_significance`, and `add_features` accept
+an option object or its keyword arguments. See [Research figures](RESEARCH_FIGURES.md)
+for styles, weights, scope, algorithms, defaults, and examples.

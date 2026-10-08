@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "plot-function"
-version = "0.2.0"
+version = "0.3.0"
 description = "From NetCDF to beautiful maps, with xarray, Cartopy, and Matplotlib."
 readme = "README.md"
 requires-python = ">=3.10"

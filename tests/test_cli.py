@@ -32,3 +32,40 @@ def test_cli_plot(ncfile, tmp_path):
 def test_cli_error_is_actionable(ncfile, capsys):
     assert main(["plot", str(ncfile), "-o", "unused.png"]) == 2
     assert "extra dimensions" in capsys.readouterr().err
+
+
+def test_cli_statistical_composition(dataset, tmp_path):
+    import xarray as xr
+
+    dataset["p"] = xr.full_like(dataset.temperature, 0.001)
+    path, output = tmp_path / "pvalues.nc", tmp_path / "composition.png"
+    dataset.to_netcdf(path)
+    assert (
+        main(
+            [
+                "plot",
+                str(path),
+                "-v",
+                "temperature",
+                "--isel",
+                '{"time": 0}',
+                "--profile",
+                "right",
+                "--distribution",
+                "ecdf",
+                "--coslat",
+                "--pvalues",
+                str(path),
+                "--pvariable",
+                "p",
+                "--p-isel",
+                '{"time": 0}',
+                "--fdr",
+                "--no-coastlines",
+                "-o",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    assert output.stat().st_size > 5000
