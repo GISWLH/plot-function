@@ -73,9 +73,9 @@ Accepts all `open_field` options, plus:
 | `colorbar` | `True` | Add a horizontal colorbar. Disable for shared custom colorbars. |
 | `plotfunc` | `"pcolormesh"` | `pcolormesh` or `contourf`. |
 | `ax` | `None` | An existing Cartopy GeoAxes; overrides `projection`. Its figure background remains caller-controlled. |
-| `figsize` | `(10, 5.8)` | Inches, used only when creating a new figure. |
+| `figsize` | `(7.2, 4.2)` | Inches (≈183 mm double column), used only when creating a new figure. |
 | `output` | `None` | Optional path to save immediately. Parent directories are created. |
-| `dpi` | `180` | Resolution for immediate export. |
+| `dpi` | `300` | Resolution for immediate export; use 600 for print. |
 
 Regional extents control the viewport; they do not crop, mask, or resample the
 returned data. For very large arrays, select/crop the data before plotting.
@@ -89,7 +89,7 @@ returned data. For very large arrays, select/crop the data before plotting.
 | `.artist` | The plotted mappable, usable for a shared colorbar. |
 | `.colorbar` | Colorbar or `None`. |
 | `.data` | The normalized 2D field, including explicitly converted values. |
-| `.save(path, dpi=180, **kwargs)` | Save with a tight bounding box and the figure's background. Additional options go to `Figure.savefig`. Returns a `Path`. |
+| `.save(path, dpi=300, **kwargs)` | Save with a tight bounding box and the figure's background. Additional options go to `Figure.savefig`. Returns a `Path`. |
 
 ```python
 result.axes.text(0.02, 0.02, "ERA5 · 1978", transform=result.axes.transAxes)
@@ -137,3 +137,45 @@ preserving the original API's behavior.
 `add_profile`, `add_distribution`, `add_significance`, and `add_features` accept
 an option object or its keyword arguments. See [Research figures](RESEARCH_FIGURES.md)
 for styles, weights, scope, algorithms, defaults, and examples.
+
+## Data contract
+
+- **Rectilinear geographic grids:** latitude and longitude must each be one-dimensional, finite, and contain at least two distinct values. CF `standard_name` / geographic `units` and common `lat`/`lon` or `latitude`/`longitude` names are recognized.
+- **Explicit scientific choices:** multiple fields require `variable=`; nonspatial dimensions with more than one value require selection or reduction. Reductions are unweighted and skip missing values. Supported statistics: `mean`, `median`, `min`, `max`, `sum`, `std`.
+- **Coordinate normalization:** latitude is sorted, longitude is wrapped to `[-180, 180)` and sorted; a redundant global 0°/360° endpoint is removed. Other duplicates are rejected.
+- **Missing values:** xarray decodes NetCDF fill values; nonfinite values are masked. An entirely missing field produces an actionable error.
+- **Bounded scope:** curvilinear grids, unstructured meshes, projected x/y grids in metres, and antimeridian-crossing regional grids/extents need preprocessing. The API does not reproject source grids or infer units, vertical levels, time weights, or area weights.
+- **Memory:** the selected/reduced 2D field is loaded before the file is closed. For large workflows, preprocess with xarray and pass a prepared `DataArray`.
+
+## `plot_function.journal`
+
+Publication helpers that decorate *any* Matplotlib/Cartopy axes. They never
+modify global `rcParams`; wrap figure code in `journal_style()`. Gallery:
+[`examples/journal_figures.py`](../examples/journal_figures.py); minimal example:
+[`examples/journal_quickstart.py`](../examples/journal_quickstart.py).
+
+| Function | Key arguments | Returns |
+| :--- | :--- | :--- |
+| `journal_style(**overrides)` | any rcParams | context manager (Arial → Helvetica → Liberation Sans → Nimbus Sans → DejaVu Sans, 7 pt base, 0.5 pt lines, `pdf.fonttype=42`) |
+| `figsize(width="double", ratio=0.55)` | `"single"` (89 mm), `"onehalf"` (120 mm), `"double"` (183 mm) or mm | `(w, h)` inches |
+| `discrete_cmap(cmap, levels, extend="both")` | colormap name/object or explicit colour list (`len(levels)-1` + number of extend ends) | `(ListedColormap, BoundaryNorm)` |
+| `add_colorbar(mappable, ax, label=, title=, orientation=, bounds=, tick_every=)` | `bounds=[x, y, w, h]` in figure fraction, or placement relative to `ax` | `Colorbar` |
+| `geo_ticks(ax, xticks=, yticks=, lat_labels=, lon_labels=, gridlines=)` | degree tick positions | gridliner list |
+| `add_land(ax, color=LAND, borders=True, resolution="110m")` | Natural Earth (downloads once) | feature artists |
+| `add_stippling(ax, lon, lat, mask, stride=2, size=1.2, offset=True)` | 1-D or 2-D lon/lat, boolean mask | `PathCollection` or `None` |
+| `add_hatching(ax, lon, lat, mask, hatch="....")` | | contour set or `None` |
+| `hatch_patch(hatch)` | | legend handle |
+| `add_inset_bars(ax, labels, values, hatched=, colors=, bounds=, frame="box")` | `hatched` = uncertain part of each bar | inset axes |
+| `add_inset_histogram(ax, groups, bins=, log=, cumulative=, bounds=, frame="open")` | array or `{label: values}`; `cumulative=True` or weights | `(hist_axes, twin_axes or None)` |
+| `add_latitude_profile(ax, lat, center, lower=, upper=, outer=, members=, width=, pad=)` | values per latitude | profile axes, y axis locked to the map |
+| `add_longitude_profile(ax, lon, center, lower=, upper=)` | values per longitude | profile axes above the map |
+| `add_panel_label(ax, "a", style="({})")` | | `Text` |
+| `add_size_legend(ax, values, labels, scale=)` | `scale(value) -> marker area (pt²)` | `Legend` |
+| `save_figure(fig, path, dpi=600, formats=None)` | e.g. `formats=("png", "pdf")` | path(s) |
+
+**Profile alignment.** Profile coordinates are transformed with
+`ax.projection.transform_points` at the central longitude (or the centre of
+the extent), and the profile's limits are synchronised with the map's at draw
+time. On pseudo-cylindrical projections (Robinson, Equal Earth, Mollweide)
+latitude maps to a single y value, so alignment is exact; on conic projections
+it is exact only along the reference meridian.

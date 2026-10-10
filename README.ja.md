@@ -1,6 +1,6 @@
-<p align="center"><img src="docs/assets/logo.png" width="72" alt="plot-function のロゴ"></p>
+<p align="center"><img src="docs/brand/banner.png" width="100%" alt="plot-function — NetCDF から論文品質の地図へ"></p>
 
-![plot-function — NetCDF から美しい地図へ](docs/assets/header.png)
+> **0.4 の新機能：** Nature / Science 風の図版ツールキット `plot_function.journal`（離散カラースケール、点描・ハッチング、左下の統計インセット、地図の緯度に揃えた右側プロファイル、600 dpi 出力）。[新ギャラリー](README.md#gallery) と [API](docs/API.md#plot_functionjournal) を参照してください。
 
 <p align="center"><a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <b>日本語</b></p>
 <p align="center">

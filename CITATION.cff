@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If plot-function helped your figures, please cite it as below and give the repository a star."
+title: "plot-function: journal-grade maps from NetCDF with xarray, Cartopy and Matplotlib"
+type: software
+authors:
+  - family-names: Wang
+    given-names: Longhao
+    orcid: "https://orcid.org/0000-0002-4642-4701"
+repository-code: "https://github.com/GISWLH/plot-function"
+url: "https://github.com/GISWLH/plot-function"
+license: MIT
+version: 0.4.0
+keywords:
+  - netcdf
+  - cartopy
+  - xarray
+  - matplotlib
+  - climate
+  - hydrology
+  - scientific visualization

@@ -1,4 +1,5 @@
 include README*.md CHANGELOG.md CONTRIBUTING.md LICENSE
-recursive-include docs *.md *.png
+recursive-include docs *.md *.png *.svg
 recursive-include examples *.py
 recursive-include tests *.py
+include CITATION.cff

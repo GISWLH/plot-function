@@ -19,12 +19,14 @@ import xarray as xr
 from plot_function import Distribution, MapFeatures, Profile, Significance, plot_map
 
 ROOT = Path(__file__).resolve().parents[1]
-INK, MUTED, TEAL = "#163438", "#647b80", "#267f83"
+INK, MUTED, TEAL = "#1a1a1a", "#555555", "#2b5d8c"
 
 
 def footer(fig, text):
-    fig.text(0.055, 0.025, text, fontsize=8, color=MUTED)
-    fig.text(0.95, 0.025, "plot-function / research atlas", ha="right", fontsize=8, color=INK)
+    from plot_function.journal import resolved_font
+
+    fig.text(0.01, 0.005, text, fontsize=5.5, color=MUTED, ha="left", va="bottom",
+             fontfamily=resolved_font())
 
 
 def synthetic_experiment(path):
@@ -72,26 +74,24 @@ def gallery(output, *, coastlines=True, map_details=True):
         reduce="time",
         cmap="RdYlBu_r",
         levels=np.arange(-40, 41, 5),
-        title="Temperature, in space and in distribution",
-        subtitle="ERA5 / 1978 · Mean of 12 monthly means · 1° display grid",
-        figsize=(13, 7.5),
+        title="Annual-mean 2 m air temperature",
+        subtitle="ERA5 1978 · mean of 12 monthly means · 1° display grid",
+        label="Temperature (°C)",
+        figsize=(7.2, 4.0),
         coastlines=coastlines,
-        profiles=Profile(style="band", spread="std", reference=0, width=0.23),
+        profiles=Profile(style="band", spread="std", reference=0, width=0.15,
+                         label="Zonal mean ± 1 s.d."),
         distribution=Distribution(
             style="bars",
             weights="coslat",
             color="map",
-            bounds=(0.035, 0.07, 0.26, 0.25),
-            label="Cos-lat weighted density",
+            bounds=(0.03, 0.06, 0.17, 0.22),
         ),
         panel_label="a",
     )
-    global_map.figure.set_facecolor("white")
-    footer(
-        global_map.figure,
-        "SPATIAL SUMMARY    /    Ribbon: ±1 spatial SD, not a confidence interval",
-    )
-    global_map.save(output / "journal-global.png", dpi=180)
+    footer(global_map.figure, "Band: ±1 spatial s.d. across longitudes (not a confidence "
+                              "interval). Inset: cos-latitude-weighted density.")
+    global_map.save(output / "journal-global.png", dpi=300)
     plt.close(global_map.figure)
 
     regional = plot_map(
@@ -100,59 +100,46 @@ def gallery(output, *, coastlines=True, map_details=True):
         extent=[92, 142, 8, 53],
         projection=ccrs.PlateCarree(),
         cmap="RdYlBu_r",
-        levels=np.arange(-10, 37, 2),
-        title="East Asia / climate in context",
-        subtitle="ERA5 / July 1978 · Regional summaries within the displayed bounds",
-        figsize=(10, 9),
+        levels=np.arange(-10, 37, 3),
+        title="East Asia, July 1978",
+        subtitle="ERA5 2 m air temperature · summaries within the displayed bounds",
+        label="Temperature (°C)",
+        figsize=(5.2, 5.0),
         coastlines=coastlines,
         profiles=[
-            Profile(style="line", color=TEAL),
+            Profile(style="band", spread="std", color=TEAL, label="Zonal mean ± 1 s.d."),
             Profile(
                 position="top",
                 style="band",
                 statistic="median",
                 spread="iqr",
-                color="#ad7843",
-                width=0.18,
+                color="#a6611a",
+                width=0.16,
+                label="Meridional median (IQR)",
             ),
         ],
         distribution=Distribution(
-            style="step", bins=20, weights="coslat", bounds=(0.045, 0.09, 0.30, 0.24)
+            style="step", bins=20, weights="coslat", bounds=(0.06, 0.07, 0.3, 0.2)
         ),
         features=MapFeatures(
-            resolution="50m", rivers=map_details, lakes=map_details, borders=map_details
+            resolution="50m", rivers=map_details, lakes=map_details, borders=map_details,
+            river_color="#4a90b8", border_color="#8c8c8c",
         ),
         panel_label="b",
     )
-    regional.figure.set_facecolor("white")
-    footer(
-        regional.figure,
-        "REGIONAL ATLAS    /    Top: median + spatial IQR    ·    Right: zonal mean",
-    )
-    regional.save(output / "journal-regional.png", dpi=180)
+    regional.save(output / "journal-regional.png", dpi=300)
     plt.close(regional.figure)
 
     synthetic = ROOT / "examples/output/synthetic-significance.nc"
     synthetic_experiment(synthetic)
-    fig, axes = plt.subplots(
-        1, 3, figsize=(16, 6.0), subplot_kw={"projection": ccrs.PlateCarree()}, facecolor="white"
-    )
-    fig.subplots_adjust(left=0.04, right=0.94, bottom=0.24, top=0.77, wspace=0.54)
-    fig.text(
-        0.04,
-        0.94,
-        "One statistical decision. Three visual languages.",
-        fontsize=23,
-        fontweight="bold",
-        color=INK,
-    )
-    fig.text(
-        0.04,
-        0.865,
-        "SYNTHETIC EXPERIMENT  /  40 independent realizations · Two-sided z-test, known σ · BH FDR q = 0.05",
-        fontsize=10,
-        color=MUTED,
-    )
+    import plot_function.journal as pj
+
+    with pj.journal_style():
+        fig, axes = plt.subplots(
+            1, 3, figsize=(7.2, 2.7), subplot_kw={"projection": ccrs.PlateCarree()},
+            facecolor="white",
+        )
+    fig.subplots_adjust(left=0.06, right=0.9, bottom=0.3, top=0.9, wspace=0.55)
     for ax, style, profile_style, dist_style, letter in zip(
         axes,
         ["stipple", "hatch", "contour"],
@@ -167,43 +154,40 @@ def gallery(output, *, coastlines=True, map_details=True):
             extent=[80, 150, 0, 60],
             cmap="RdBu_r",
             levels=np.linspace(-1.8, 1.8, 13),
-            title=style.capitalize(),
+            title={"stipple": "Stippling", "hatch": "Hatching", "contour": "Contour"}[style],
             coastlines=False,
             colorbar=False,
-            panel_label=letter,
             significance=Significance(
                 synthetic,
                 variable="p_value",
                 style=style,
                 correction="fdr_bh",
                 stride=2,
-                size=2.8,
-                hatch="....",
+                size=2.2,
+                hatch="///",
                 legend=False,
             ),
             profiles=Profile(
                 style=profile_style,
-                width=0.19,
+                width=0.2,
                 reference=0,
-                label="Mean" if profile_style != "band" else "Mean ± SD",
+                label="Mean" if profile_style != "band" else "Mean ± s.d.",
             ),
             distribution=Distribution(
-                style=dist_style, bins=14, bounds=(0.075, 0.065, 0.41, 0.25), show_mean=False
+                style=dist_style, bins=14, bounds=(0.1, 0.16, 0.36, 0.22), show_mean=False
             ),
         )
-    bar = fig.colorbar(
-        result.artist, cax=fig.add_axes([0.32, 0.14, 0.36, 0.022]), orientation="horizontal"
-    )
-    bar.set_label("Synthetic response / arbitrary units", fontsize=9, color=INK)
-    bar.ax.tick_params(labelsize=8, colors=MUTED, length=2)
-    bar.outline.set_visible(False)
-    footer(
-        fig,
-        "METHOD STUDY    /    Identical p-values and FDR family in all panels · No observed climate significance is implied",
-    )
-    fig.savefig(
-        output / "journal-significance.png", dpi=180, bbox_inches="tight", facecolor="white"
-    )
+        ax.annotate(letter, xy=(0, 0), xycoords=ax._left_title, xytext=(-4, 0),
+                    textcoords="offset points", fontsize=10, fontweight="bold", ha="right",
+                    fontfamily=pj.resolved_font())
+        if letter != "a":  # latitude is labelled once, on panel a and on each profile
+            ax.tick_params(labelleft=False)
+    with pj.journal_style():
+        pj.add_colorbar(result.artist, axes[1], label="Synthetic response (arbitrary units)",
+                        bounds=[0.3, 0.13, 0.4, 0.03], tick_every=2)
+    footer(fig, "Synthetic experiment: 40 realizations, two-sided z-test (known σ), "
+                "BH FDR q = 0.05. Identical decisions in all panels.")
+    pj.save_figure(fig, output / "journal-significance.png", dpi=300)
     plt.close(fig)
     print(f"Rendered three journal compositions to {output}")
 

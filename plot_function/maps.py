@@ -9,12 +9,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 
+from . import journal as pj
 from .data import Source, open_field
 from .legacy import one_map_flat
 from .options import MapFeatures, Profile
 
+# "light" is the publication theme: white paper, near-black ink, light dashed grid.
 _THEMES = {
-    "light": {"paper": "#f8faf9", "ink": "#163438", "muted": "#647b80", "water": "#edf3f2"},
+    "light": {"paper": "#ffffff", "ink": pj.INK, "muted": pj.MUTED, "water": "#ffffff"},
     "dark": {"paper": "#10252e", "ink": "#edf5ef", "muted": "#a3bec2", "water": "#16333e"},
 }
 _PROJECTIONS = {
@@ -67,13 +69,19 @@ class MapResult:
 
         return add_features(self, options, **kwargs)
 
-    def save(self, path: str | Path, *, dpi: int = 180, **kwargs) -> Path:
+    def save(self, path: str | Path, *, dpi: int = 300, **kwargs) -> Path:
         """Save PNG, PDF, SVG, or another Matplotlib format; create parent directories."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        options = {"dpi": dpi, "bbox_inches": "tight", "facecolor": self.figure.get_facecolor()}
+        options = {
+            "dpi": dpi,
+            "bbox_inches": "tight",
+            "pad_inches": 0.03,
+            "facecolor": self.figure.get_facecolor(),
+        }
         options.update(kwargs)
-        self.figure.savefig(path, **options)
+        with pj.journal_style():
+            self.figure.savefig(path, **options)
         return path
 
 
@@ -110,9 +118,9 @@ def plot_map(
     features=None,
     panel_label=None,
     ax=None,
-    figsize=(10, 5.8),
+    figsize=(7.2, 4.2),
     output=None,
-    dpi=180,
+    dpi=300,
 ) -> MapResult:
     """Plot a NetCDF field with one function call; return editable Matplotlib objects.
 
@@ -121,6 +129,10 @@ def plot_map(
     Choose ``coastlines=False`` for a completely offline, NetCDF-only plot.
     Coastlines otherwise use Cartopy's cached/downloaded Natural Earth 110m data.
     A supplied Cartopy ``ax`` owns the projection; ``projection`` is then ignored.
+
+    Figures use the journal typography of :mod:`plot_function.journal` (Arial /
+    Helvetica-like sans serif, 7–9 pt, thin 0.5 pt lines) and are exported at
+    300 dpi by default; pass ``dpi=600`` for print.
     """
     if theme not in _THEMES:
         raise ValueError(f"Unknown theme {theme!r}; choose 'light' or 'dark'.")
@@ -163,15 +175,15 @@ def plot_map(
     )
     colors = _THEMES[theme]
     owns_figure = ax is None
-    with mpl.rc_context({"font.size": 10}):
+    with pj.journal_style():
         if owns_figure:
             figure, ax = plt.subplots(figsize=figsize, subplot_kw={"projection": projection})
             figure.patch.set_facecolor(colors["paper"])
             figure.subplots_adjust(
-                left=0.055,
-                right=0.78 if any(p.position == "right" for p in profiles) else 0.945,
-                top=0.67 if any(p.position == "top" for p in profiles) else 0.83,
-                bottom=0.14,
+                left=0.06,
+                right=0.80 if any(p.position == "right" for p in profiles) else 0.97,
+                top=0.72 if any(p.position == "top" for p in profiles) else 0.88,
+                bottom=0.13,
             )
         else:
             figure = ax.figure
@@ -194,41 +206,29 @@ def plot_map(
                 ax.coastlines(
                     resolution=features.resolution if features else "110m",
                     color=colors["ink"],
-                    linewidth=0.45,
-                    alpha=0.75,
+                    linewidth=0.35,
                 )
-            ax.spines["geo"].set_edgecolor(colors["muted"])
-            ax.spines["geo"].set_linewidth(0.6)
+            ax.spines["geo"].set_edgecolor(colors["ink"] if theme == "light" else colors["muted"])
+            ax.spines["geo"].set_linewidth(0.5)
             if gridlines:
-                grid = ax.gridlines(
-                    draw_labels=extent is not None,
-                    x_inline=False,
-                    y_inline=False,
-                    linewidth=0.4,
-                    color=colors["muted"],
-                    alpha=0.45,
-                    linestyle=(0, (3, 5)),
-                )
-                grid.top_labels = grid.right_labels = False
-                grid.rotate_labels = False
-                grid.xlabel_style = grid.ylabel_style = {"color": colors["muted"], "size": 8}
+                _journal_grid(ax, extent, colors, theme)
             heading = title if title is not None else data.attrs.get("long_name", data.name or "")
             title_artist = ax.set_title(
                 heading,
                 loc="left",
-                fontsize=17 if owns_figure else 12,
+                fontsize=9 if owns_figure else 8,
                 fontweight="bold",
                 color=colors["ink"],
-                pad=28 if subtitle else 14,
+                pad=14 if subtitle else 5,
             )
             subtitle_artist = None
             if subtitle:
                 subtitle_artist = ax.text(
                     0,
-                    1.015,
+                    1.012,
                     subtitle,
                     transform=ax.transAxes,
-                    fontsize=9,
+                    fontsize=7,
                     color=colors["muted"],
                     ha="left",
                     va="bottom",
@@ -239,18 +239,25 @@ def plot_map(
                     artist,
                     ax=ax,
                     orientation="horizontal",
-                    pad=0.09,
-                    fraction=0.045,
-                    shrink=0.72,
-                    aspect=36,
+                    pad=0.06 if extent is None else 0.09,
+                    fraction=0.04,
+                    shrink=0.6,
+                    aspect=38,
+                    extendfrac=0.04,
                 )
                 cbar.set_label(
                     label if label is not None else data.attrs.get("units", ""),
                     color=colors["ink"],
-                    labelpad=7,
+                    fontsize=7.5,
+                    labelpad=2,
                 )
-                cbar.ax.tick_params(colors=colors["muted"], labelsize=8, length=3)
-                cbar.outline.set_visible(False)
+                cbar.ax.tick_params(
+                    colors=colors["ink"], labelsize=6.5, length=2, width=0.5, pad=1.5
+                )
+                cbar.outline.set_linewidth(0.5)
+                cbar.outline.set_edgecolor(colors["ink"])
+                cbar.ax.minorticks_off()
+                cbar.ax.xaxis.set_major_formatter(pj.clean_formatter())
             result = MapResult(
                 figure,
                 ax,
@@ -271,18 +278,20 @@ def plot_map(
             if distribution is not None:
                 result.add_distribution(distribution)
             if panel_label is not None:
-                ax.text(
-                    0.015,
-                    0.975,
-                    panel_label,
-                    transform=ax.transAxes,
-                    va="top",
-                    fontsize=12,
-                    fontweight="bold",
-                    color=colors["ink"],
-                    zorder=11,
-                    bbox={"facecolor": colors["paper"], "edgecolor": "none", "pad": 3},
+                label_style = dict(
+                    fontsize=10, fontweight="bold", color=colors["ink"], zorder=11, ha="right"
                 )
+                if heading:
+                    # Nature style: bold lowercase letter immediately left of the title.
+                    ax.annotate(
+                        panel_label, xy=(0, 0), xycoords=result._title, xytext=(-5, 0),
+                        textcoords="offset points", va="bottom", **label_style,
+                    )
+                else:
+                    ax.text(
+                        -0.01, 1.01, panel_label, transform=ax.transAxes, va="bottom",
+                        **label_style,
+                    )
             if output is not None:
                 result.save(output, dpi=dpi)
             return result
@@ -290,3 +299,34 @@ def plot_map(
             if owns_figure:
                 plt.close(figure)
             raise
+
+
+def _journal_grid(ax, extent, colors, theme):
+    """Light dashed graticule; outward degree ticks on rectangular regional maps."""
+    rectangular = isinstance(ax.projection, (ccrs.PlateCarree, ccrs.Mercator))
+    if extent is not None:
+        west, east, south, north = extent
+        xstep = _nice_step(east - west)
+        ystep = _nice_step(north - south)
+        xticks = np.arange(np.ceil(west / xstep) * xstep, east + 1e-9, xstep)
+        yticks = np.arange(np.ceil(south / ystep) * ystep, north + 1e-9, ystep)
+    else:
+        xticks, yticks = np.arange(-180, 181, 60), np.arange(-60, 61, 30)
+    pj.geo_ticks(
+        ax,
+        xticks=xticks,
+        yticks=yticks,
+        labels=extent is not None or rectangular,
+        grid_color=pj.GRID if theme == "light" else colors["muted"],
+    )
+    # Axes created outside journal_style() have DejaVu tick labels; restyle them.
+    ax.tick_params(labelfontfamily=pj.resolved_font())
+    if theme != "light":
+        ax.tick_params(colors=colors["muted"], labelcolor=colors["muted"])
+
+
+def _nice_step(span):
+    for step in (1, 2, 5, 10, 20, 30, 60):
+        if span / step <= 5:
+            return step
+    return 60

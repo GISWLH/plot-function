@@ -9,8 +9,9 @@ import numpy as np
 import xarray as xr
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
-from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import FixedLocator, FuncFormatter, MaxNLocator
 
+from . import journal as pj
 from .data import _select_variable, open_field
 from .legacy import _cyclic_if_global
 from .options import Distribution, MapFeatures, Profile, Significance
@@ -45,17 +46,30 @@ def _scope(result, weights=None):
 
 
 def _style_axes(ax, result):
-    ink = "#163438" if result.theme == "light" else "#edf5ef"
-    muted = "#647b80" if result.theme == "light" else "#a3bec2"
+    """Journal inset styling: transparent background, thin left/bottom spines."""
+    light = result.theme == "light"
+    ink = pj.INK if light else "#edf5ef"
+    muted = pj.MUTED if light else "#a3bec2"
     for name, spine in ax.spines.items():
         spine.set_visible(name in ("left", "bottom"))
-        spine.set_color(muted)
-        spine.set_linewidth(0.55)
-    ax.set_facecolor("white" if result.theme == "light" else "#10252e")
-    ax.tick_params(labelsize=7, colors=muted, length=2, width=0.5)
+        spine.set_color(ink)
+        spine.set_linewidth(0.5)
+    ax.patch.set_alpha(0)
+    ax.tick_params(labelsize=6, colors=ink, length=2, width=0.5, pad=1.5)
     ax.xaxis.label.set_color(ink)
     ax.yaxis.label.set_color(ink)
     return ink, muted
+
+
+def _attach_draw_hook(child, sync):
+    original = child.draw
+
+    def draw(renderer):
+        sync()
+        return original(renderer)
+
+    child.draw = draw
+    sync()
 
 
 def add_profile(result, options=None, **kwargs):
@@ -79,51 +93,104 @@ def add_profile(result, options=None, **kwargs):
     )
     if not bool(np.isfinite(stats.center).any()):
         raise ValueError("The profile has no finite positive-weight samples.")
+    map_ax = result.axes
     bounds = [1 + spec.pad, 0, spec.width, 1] if right else [0, 1 + spec.pad, 1, spec.width]
-    ax = result.axes.inset_axes(bounds, transform=result.axes.transAxes, zorder=6)
+    ax = map_ax.inset_axes(bounds, transform=map_ax.transAxes, zorder=6)
     ink, muted = _style_axes(ax, result)
     coord, center = stats[coordinate].values, stats.center.values
+    # Push geographic coordinates through the map projection so that, e.g., 40°N on
+    # the profile is level with 40°N on the map, for Robinson/Equal Earth as well.
+    if result.extent is not None:
+        west, east, south, north = result.extent
+        ref = (west + east) / 2 if right else (south + north) / 2
+    else:
+        ref = None if right else 0.0
+    try:
+        pos = (
+            pj._proj_coord(map_ax, lat=coord, ref=ref)
+            if right
+            else pj._proj_coord(map_ax, lon=coord, ref=ref)
+        )
+        aligned = bool(np.isfinite(pos).all())
+    except Exception:  # pragma: no cover - exotic projections
+        aligned = False
+    if not aligned:
+        pos = coord
     artists = []
     if spec.style == "band" and spread is not None:
         fill = ax.fill_betweenx if right else ax.fill_between
         artists.append(
-            fill(coord, stats.lower, stats.upper, color=spec.color, alpha=0.16, linewidth=0)
+            fill(pos, stats.lower, stats.upper, color=spec.color, alpha=0.22, linewidth=0)
         )
     if spec.style == "bars":
-        spacing = float(np.min(np.diff(coord))) * 0.75 if len(coord) > 1 else 0.6
+        spacing = float(np.min(np.abs(np.diff(pos)))) * 0.8 if len(pos) > 1 else 0.6
         if right:
-            artists.extend(ax.barh(coord, center, height=spacing, color=spec.color, alpha=0.75))
+            artists.extend(ax.barh(pos, center, height=spacing, color=spec.color, alpha=0.8))
         else:
-            artists.extend(ax.bar(coord, center, width=spacing, color=spec.color, alpha=0.75))
+            artists.extend(ax.bar(pos, center, width=spacing, color=spec.color, alpha=0.8))
     else:
         artists.extend(
-            ax.plot(center, coord, color=spec.color, lw=1.35)
+            ax.plot(center, pos, color=spec.color, lw=1.0)
             if right
-            else ax.plot(coord, center, color=spec.color, lw=1.35)
+            else ax.plot(pos, center, color=spec.color, lw=1.0)
         )
     if spec.reference is not None:
         reference = ax.axvline if right else ax.axhline
-        artists.append(reference(spec.reference, color=muted, lw=0.65, ls="--"))
-    if result.extent is not None:
-        limits = result.extent[2:] if right else result.extent[:2]
-    else:
-        limits = [float(coord.min()), float(coord.max())]
-    if limits[0] == limits[1]:
-        limits = [limits[0] - 0.5, limits[1] + 0.5]
+        artists.append(reference(spec.reference, color=ink, lw=0.5, ls=(0, (2.5, 2))))
     unit = data.attrs.get("units", "")
+    if aligned:
+        if result.extent is not None:
+            lo, hi = result.extent[2:] if right else result.extent[:2]
+        else:
+            lo, hi = (-90, 90) if right else (-180, 180)
+        span = hi - lo
+        step = next((v for v in (5, 10, 15, 20, 30, 60) if span / v <= 6), 60)
+        ticks = np.arange(np.ceil(lo / step) * step, hi + 1e-9, step)
+        if right:
+            ticks = ticks[np.abs(ticks) < 90]
+        tick_pos = (
+            pj._proj_coord(map_ax, lat=ticks, ref=ref)
+            if right
+            else pj._proj_coord(map_ax, lon=ticks, ref=ref)
+        )
+        fmt = pj.format_lat if right else pj.format_lon
+        axis = ax.yaxis if right else ax.xaxis
+        axis.set_major_locator(FixedLocator(tick_pos))
+        axis.set_major_formatter(
+            FuncFormatter(lambda v, _p: fmt(ticks[int(np.argmin(np.abs(tick_pos - v)))]))
+        )
+        for t in tick_pos:
+            (ax.axhline if right else ax.axvline)(t, color=pj.GRID, lw=0.35, ls=(0, (3, 3)), zorder=0)
+
+        def sync():
+            if right:
+                ax.set_ylim(map_ax.get_ylim())
+            else:
+                ax.set_xlim(map_ax.get_xlim())
+
+        _attach_draw_hook(ax, sync)
+    else:
+        limits = (
+            (result.extent[2:] if right else result.extent[:2])
+            if result.extent is not None
+            else [float(coord.min()), float(coord.max())]
+        )
+        if limits[0] == limits[1]:
+            limits = [limits[0] - 0.5, limits[1] + 0.5]
+        (ax.set_ylim if right else ax.set_xlim)(limits)
+    band_label = {"std": " ± 1 s.d.", "iqr": " (IQR)", None: ""}[spread]
+    title = spec.label if spec.label is not None else spec.statistic.capitalize() + band_label
     if right:
-        ax.set_ylim(limits)
         ax.yaxis.tick_right()
         ax.spines["right"].set_visible(True)
         ax.spines["left"].set_visible(False)
-        ax.set_xlabel(unit, fontsize=8)
-        ax.yaxis.set_label_position("right")
-        ax.set_ylabel("Latitude / °", fontsize=8, labelpad=5)
+        # The description goes under the axis, where it cannot collide with titles.
+        ax.set_xlabel(f"{title}\n({unit})" if unit else title, fontsize=6.5)
         ax.xaxis.set_major_locator(MaxNLocator(3))
+        ax.xaxis.set_major_formatter(pj.clean_formatter())
     else:
-        ax.set_xlim(limits)
-        ax.set_ylabel(unit, fontsize=8)
-        ax.tick_params(axis="x", labelbottom=False)
+        ax.set_ylabel(unit, fontsize=7)
+        ax.tick_params(axis="x", labelbottom=False, bottom=False)
         ax.yaxis.set_major_locator(MaxNLocator(3))
         if result._title is not None:
             result._title = result.axes.set_title(
@@ -131,14 +198,12 @@ def add_profile(result, options=None, **kwargs):
                 loc="left",
                 fontproperties=result._title.get_fontproperties(),
                 color=result._title.get_color(),
-                y=1 + spec.pad + spec.width + 0.07,
-                pad=28 if result._subtitle is not None else 14,
+                y=1 + spec.pad + spec.width + 0.08,
+                pad=14 if result._subtitle is not None else 5,
             )
         if result._subtitle is not None:
-            result._subtitle.set_y(1 + spec.pad + spec.width + 0.07)
-    band_label = {"std": " ±1 spatial SD", "iqr": " · spatial IQR", None: ""}[spread]
-    title = spec.label if spec.label is not None else spec.statistic.capitalize() + band_label
-    ax.set_title(title, loc="left", fontsize=8, color=ink, pad=7)
+            result._subtitle.set_y(1 + spec.pad + spec.width + 0.08)
+        ax.set_title(title, loc="left", fontsize=6.5, color=ink, pad=2, fontweight="normal")
     layer = LayerResult(ax, stats, artists)
     result.profiles[spec.position] = layer
     return layer
@@ -173,10 +238,11 @@ def add_distribution(result, options=None, **kwargs):
         stats = histogram(data, bins=spec.bins, weights=weights, density=spec.density)
     ax = result.axes.inset_axes(spec.bounds, transform=result.axes.transAxes, zorder=8)
     ink, muted = _style_axes(ax, result)
-    # The solid white panel separates the data summary from the map beneath it.
-    ax.patch.set_alpha(0.96)
+    if spec.background is not None:
+        ax.patch.set_facecolor(spec.background)
+        ax.patch.set_alpha(spec.background_alpha)
     artists = []
-    color = spec.color if spec.color != "map" else "#267f83"
+    color = spec.color if spec.color != "map" else "#3b6f8f"
     if spec.style == "bars":
         colors = (
             result.artist.cmap(result.artist.norm(stats.bin.values))
@@ -187,52 +253,50 @@ def add_distribution(result, options=None, **kwargs):
             ax.bar(
                 stats.bin,
                 stats.height,
-                width=(stats.right - stats.left) * 0.88,
+                width=(stats.right - stats.left),
                 color=colors,
-                edgecolor="none",
-                alpha=0.9,
+                edgecolor="white" if result.theme == "light" else "none",
+                linewidth=0.3,
             )
         )
+        edges = np.r_[stats.left.values, stats.right.values[-1]]
+        artists.append(ax.stairs(stats.height, edges, color=ink, lw=0.6, fill=False))
     elif spec.style == "step":
         edges = np.r_[stats.left.values, stats.right.values[-1]]
-        artists.append(ax.stairs(stats.height, edges, color=color, lw=1.2, fill=False))
+        artists.append(ax.stairs(stats.height, edges, color=color, lw=0.9, fill=False))
     elif spec.style == "line":
-        artists.extend(ax.plot(stats.bin, stats.height, color=color, lw=1.35))
-        artists.append(ax.fill_between(stats.bin, stats.height, color=color, alpha=0.10))
+        artists.extend(ax.plot(stats.bin, stats.height, color=color, lw=1.0))
+        artists.append(ax.fill_between(stats.bin, stats.height, color=color, alpha=0.15, lw=0))
     else:
         artists.extend(
-            ax.step(stats.value, stats["cumulative"], where="post", color=color, lw=1.35)
+            ax.step(stats.value, stats["cumulative"], where="post", color=color, lw=1.0)
         )
     if spec.show_mean:
-        artists.append(ax.axvline(stats.attrs["mean"], color=ink, lw=0.75, ls=(0, (3, 2))))
+        mean = stats.attrs["mean"]
+        artists.append(
+            ax.plot(
+                [mean], [0], marker="^", ms=4, color=ink, clip_on=False, zorder=5,
+                transform=ax.get_xaxis_transform(),
+            )[0]
+        )
         ax.text(
-            0.98,
-            0.90,
-            f"Mean {stats.attrs['mean']:.2g}",
-            ha="right",
-            va="top",
-            transform=ax.transAxes,
-            fontsize=6.5,
-            color=ink,
+            mean, 1.0, f"mean {mean:.3g}", transform=ax.get_xaxis_transform(), ha="center",
+            va="bottom", fontsize=5.5, color=ink,
         )
     weighted = spec.weights is not None
     label = (
-        "Cumulative fraction"
+        "CDF"
         if spec.style == "ecdf"
-        else ("Density" if spec.density else ("Weight" if weighted else "Cell count"))
+        else ("Density" if spec.density else ("Weight" if weighted else "Cells"))
     )
-    ax.set_title(
-        spec.label or ("Weighted distribution" if weighted else "Cell distribution"),
-        loc="left",
-        fontsize=8,
-        color=ink,
-        pad=5,
-    )
-    ax.set_xlabel(data.attrs.get("units", ""), fontsize=7, labelpad=2)
-    ax.set_ylabel(label, fontsize=7, labelpad=3)
+    if spec.label:
+        ax.set_title(spec.label, loc="left", fontsize=6.5, color=ink, pad=8, fontweight="normal")
+    ax.set_xlabel(data.attrs.get("units", ""), fontsize=6.5, labelpad=1)
+    ax.set_ylabel(label, fontsize=6.5, labelpad=2)
     ax.xaxis.set_major_locator(MaxNLocator(3))
     ax.yaxis.set_major_locator(MaxNLocator(3))
-    ax.tick_params(labelsize=6.5)
+    ax.xaxis.set_major_formatter(pj.clean_formatter())
+    ax.yaxis.set_major_formatter(pj.clean_formatter())
     ax.set_ylim(bottom=0)
     if spec.style == "ecdf":
         ax.set_ylim(0, 1.04)
@@ -351,12 +415,12 @@ def add_significance(result, options=None, **kwargs):
         legend = ax.legend(
             [handle],
             [spec.label or label],
-            loc="upper right",
-            fontsize=7,
+            loc="lower right",
+            fontsize=6.5,
             frameon=True,
             facecolor="white",
-            edgecolor="0.85",
-            framealpha=0.96,
+            edgecolor="none",
+            framealpha=0.85,
         )
         legend.set_zorder(10)
         artists.append(legend)

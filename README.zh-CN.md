@@ -1,6 +1,4 @@
-<p align="center"><img src="docs/assets/logo.png" width="72" alt="plot-function 标志"></p>
-
-![plot-function — 从 NetCDF 到精美地图](docs/assets/header.png)
+<p align="center"><img src="docs/brand/banner.png" width="100%" alt="plot-function — 几行代码，从 NetCDF 到顶刊级地学制图"></p>
 
 <p align="center"><a href="README.md">English</a> · <b>简体中文</b> · <a href="README.ja.md">日本語</a></p>
 <p align="center">
@@ -13,7 +11,18 @@
 
 新工作流无需准备 Shapefile 或 GeoTIFF，也不依赖 Salem。可选海岸线由 Cartopy 的 Natural Earth 缓存提供；设置 `coastlines=False` 即可完全离线绘图。
 
-[快速开始](#快速开始) · [示例画廊](#示例画廊) · [使用自己的数据](#使用自己的数据) · [命令行](#命令行) · [API 参考](docs/API.md)
+[顶刊图库](#顶刊图库04-新增) · [快速开始](#快速开始) · [示例画廊](#示例画廊) · [使用自己的数据](#使用自己的数据) · [命令行](#命令行) · [API 参考](docs/API.md)
+
+## 顶刊图库（0.4 新增）
+
+新增 `plot_function.journal` 模块，参照 Nature / Science 版式：Arial 7–9 pt 字体、带三角端点的离散色标、低一致性打点与纹理、左下角统计小图（分类柱状图带低一致性纹理 / 对数直方图 + 累积曲线双轴）、右侧**与地图纬度严格对齐**的纬向剖面（Robinson 等任意投影均对齐，含 IQR / 集合范围阴影）、`40°N` 式刻度与浅色虚线经纬网、600 dpi 导出。
+
+| | |
+| :---: | :---: |
+| <img src="docs/gallery/fig1_regimes.png" alt="双色标分区图、打点、左下角柱状图与右侧纬向剖面"> | <img src="docs/gallery/fig2_sites.png" alt="站点图、对数直方图与累积曲线"> |
+| <img src="docs/gallery/fig3_era5_profile.png" alt="Robinson 投影与对齐的纬向剖面"> | <img src="docs/gallery/fig4_regional_significance.png" alt="区域打点与纹理显著性对比"> |
+
+图 1、2、4 使用**合成示例数据**（图中已注明），图 3 使用仓库自带的 ERA5 1978 年数据。运行 `python examples/journal_figures.py` 可全部复现；最小示例见 `python examples/journal_quickstart.py`，用法见英文 [README](README.md#journal-toolkit) 与 [API 参考](docs/API.md#plot_functionjournal)。
 
 ## 快速开始
 

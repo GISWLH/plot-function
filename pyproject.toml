@@ -4,16 +4,25 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "plot-function"
-version = "0.3.0"
-description = "From NetCDF to beautiful maps, with xarray, Cartopy, and Matplotlib."
+version = "0.4.0"
+description = "Journal-grade maps from NetCDF: xarray + Cartopy + Matplotlib, with insets, marginal profiles and significance layers."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [{name = "Longhao Wang"}]
-keywords = ["netcdf", "climate", "cartopy", "xarray", "visualization"]
+keywords = ["netcdf", "climate", "hydrology", "cartopy", "xarray", "matplotlib", "visualization", "scientific-figures", "geoscience"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Atmospheric Science",
+  "Topic :: Scientific/Engineering :: GIS",
+  "Topic :: Scientific/Engineering :: Visualization",
+  "Framework :: Matplotlib",
+]
 dependencies = [
   "numpy>=1.24",
-  "matplotlib>=3.7",
+  "matplotlib>=3.8",
   "cartopy>=0.22",
   "xarray>=2023.1",
   "netCDF4>=1.6",
@@ -27,7 +36,10 @@ dev = ["pytest>=8", "ruff>=0.9", "build>=1"]
 
 [project.urls]
 Homepage = "https://github.com/GISWLH/plot-function"
+Gallery = "https://github.com/GISWLH/plot-function#gallery"
 Issues = "https://github.com/GISWLH/plot-function/issues"
+Changelog = "https://github.com/GISWLH/plot-function/blob/main/CHANGELOG.md"
+Author = "https://giswlh.github.io/"
 
 [project.scripts]
 plot-function = "plot_function.cli:main"

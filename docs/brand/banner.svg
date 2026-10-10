@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img" aria-label="plot-function: journal-grade maps from NetCDF">
+  <title>plot-function — journal-grade maps from NetCDF</title>
+  <rect width="1280" height="400" fill="#ffffff"/>
+  <g transform="translate(64 6) scale(1.38)">
+  <g transform="translate(-2 -14)">
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <!-- graticule -->
+      <path d="M96 63 Q70 112 96 161 M140 63 Q166 112 140 161" stroke="#c9ced1" stroke-width="3"/>
+      <path d="M34 112 H202" stroke="#c9ced1" stroke-width="3" stroke-dasharray="2 7"/>
+      <!-- map frame (Robinson-like) -->
+      <path d="M74 62 H162 Q206 66 210 112 Q206 158 162 162 H74 Q30 158 26 112 Q30 66 74 62 Z"
+            stroke="#1f2a30" stroke-width="7"/>
+      <!-- isolines -->
+      <path d="M46 92 C68 76 88 106 112 92 S158 74 190 90" stroke="#2b6ca3" stroke-width="6"/>
+      <path d="M58 136 C80 122 100 148 124 134 S168 118 194 132" stroke="#b5793a" stroke-width="6"/>
+      <!-- latitude profile: axis + zonal mean -->
+      <path d="M244 62 V162" stroke="#1f2a30" stroke-width="5"/>
+      <path d="M236 66 C224 80 238 96 230 110 S220 142 236 158" stroke="#2b6ca3" stroke-width="5"/>
+    </g>
+    <!-- stippling -->
+    <g fill="#1f2a30">
+      <circle cx="142" cy="108" r="3.2"/><circle cx="156" cy="108" r="3.2"/><circle cx="170" cy="108" r="3.2"/>
+      <circle cx="149" cy="118" r="3.2"/><circle cx="163" cy="118" r="3.2"/>
+    </g>
+    <!-- histogram inset over the lower-left corner -->
+    <rect x="14" y="140" width="62" height="56" fill="#ffffff"/>
+    <g fill="#ffffff" stroke="#1f2a30" stroke-width="5" stroke-linejoin="round">
+      <rect x="24" y="170" width="13" height="22"/>
+      <rect x="37" y="150" width="13" height="42"/>
+      <rect x="50" y="162" width="13" height="30"/>
+    </g>
+    <path d="M18 192 H70" stroke="#1f2a30" stroke-width="5" stroke-linecap="round"/>
+    <!-- colourbar with triangle extend ends -->
+    <g stroke="#1f2a30" stroke-width="5" stroke-linejoin="round">
+      <path d="M84 226 L100 216 H190 L206 226 L190 236 H100 Z" fill="#ffffff"/>
+      <path d="M100 216 V236 H122.5 V216 Z" fill="#2b6ca3"/>
+      <path d="M167.5 216 V236 H190 V216 Z" fill="#b5793a"/>
+      <path d="M145 216 V236" fill="none"/>
+    </g>
+  </g>
+
+  </g>
+  <path d="M466 110 V290" stroke="#e3e6e8" stroke-width="2"/>
+  <g font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" fill="#1f2a30">
+    <text x="512" y="178" font-size="84" font-weight="600" letter-spacing="-2">plot-function</text>
+    <text x="514" y="228" font-size="24" fill="#4a565c">Journal-grade maps from NetCDF, in a few lines of Python.</text>
+    <text x="514" y="270" font-size="24" fill="#4a565c" font-family="'Noto Sans CJK SC', 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif">几行代码，从 NetCDF 到顶刊级地学制图</text>
+    <g font-size="17" fill="#6b777d" letter-spacing="1.5">
+      <text x="514" y="322">XARRAY  ·  CARTOPY  ·  MATPLOTLIB</text>
+    </g>
+    <g stroke-linecap="round" stroke-width="5">
+      <path d="M514 96 H548" stroke="#2b6ca3"/>
+      <path d="M556 96 H578" stroke="#b5793a"/>
+    </g>
+  </g>
+</svg>
