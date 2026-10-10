@@ -114,3 +114,77 @@ def test_size_legend_and_bad_mask(geo):
     gax = gfig.add_subplot(projection=ccrs.PlateCarree())
     with pytest.raises(ValueError, match="shape"):
         pj.add_stippling(gax, lon, lat, np.ones((3, 3), bool))
+
+
+def test_cell_area_sums_to_earth_surface():
+    lon = np.arange(-179.5, 180, 1.0)
+    lat = np.arange(-89.5, 90, 1.0)
+    area = pj.cell_area_km2(lon, lat)
+    assert area.shape == (lat.size, lon.size)
+    assert area.sum() == pytest.approx(4 * np.pi * 6371.0088**2, rel=1e-3)
+
+
+def test_marginal_totals_area_weighted():
+    lon = np.arange(-179.5, 180, 1.0)
+    lat = np.arange(-89.5, 90, 1.0)
+    field = np.ones((lat.size, lon.size))
+    by_lat, by_lon = pj.marginal_totals(field, lon, lat)
+    assert by_lat.shape == lat.shape and by_lon.shape == lon.shape
+    assert by_lat.sum() == pytest.approx(by_lon.sum())
+    assert by_lat[90] > by_lat[0]  # equatorial rows hold more area than polar rows
+    mean_lat, _ = pj.marginal_totals(field, lon, lat, area=False, how="mean")
+    assert np.allclose(mean_lat, 1.0)
+
+
+def test_lat_lon_marginals_are_aligned_with_map():
+    lon = np.arange(-179.5, 180, 1.0)
+    lat = np.arange(-55.5, 84, 1.0)
+    field = np.random.default_rng(0).random((lat.size, lon.size))
+    by_lat, by_lon = pj.marginal_totals(field, lon, lat)
+    with pj.journal_style():
+        fig = plt.figure(figsize=pj.figsize("double", 0.6))
+        ax = fig.add_axes([0.06, 0.4, 0.7, 0.5], projection=ccrs.PlateCarree())
+        ax.set_extent([-180, 180, -56, 84], crs=ccrs.PlateCarree())
+        right, bottom = pj.add_lat_lon_marginals(
+            ax, lat=lat, lat_series={"max": by_lat, "half": by_lat / 2}, lon=lon,
+            lon_series={"max": by_lon, "half": by_lon / 2}, fill=("max",),
+        )
+        fig.canvas.draw()
+        assert right.get_ylim() == pytest.approx(ax.get_ylim())
+        assert bottom.get_xlim() == pytest.approx(ax.get_xlim())
+        r, b, m = right.get_position(), bottom.get_position(), ax.get_position()
+        assert r.y0 == pytest.approx(m.y0) and r.y1 == pytest.approx(m.y1)
+        assert b.x0 == pytest.approx(m.x0) and b.x1 == pytest.approx(m.x1)
+        plt.close(fig)
+
+
+def test_ternary_colors_corners_and_missing():
+    a = np.array([1.0, 0.0, 0.0, np.nan])
+    b = np.array([0.0, 1.0, 0.0, 0.5])
+    c = np.array([0.0, 0.0, 1.0, 0.5])
+    rgba, ranges = pj.ternary_colors(a, b, c, ranges=[(0, 1)] * 3)
+    assert rgba.shape == (4, 4)
+    for i, corner in enumerate(pj.TERNARY_CORNERS):
+        assert np.allclose(rgba[i, :3], mpl.colors.to_rgb(corner))
+    assert rgba[3, 3] == 0  # missing values are transparent
+    assert rgba.min() >= 0 and rgba.max() <= 1
+    assert ranges == [(0.0, 1.0)] * 3
+
+
+def test_ternary_legend_and_density_inset():
+    rng = np.random.default_rng(1)
+    lon = np.arange(-179.5, 180, 2.0)
+    lat = np.arange(-59.5, 60, 2.0)
+    comps = [rng.random((lat.size, lon.size)) for _ in range(3)]
+    rgba, used = pj.ternary_colors(*comps)
+    with pj.journal_style():
+        fig = plt.figure(figsize=pj.figsize("double", 0.45))
+        ax = fig.add_axes([0.1, 0.05, 0.85, 0.9], projection=ccrs.PlateCarree())
+        img = pj.plot_rgb(ax, lon, lat, rgba)
+        assert img.get_array().shape[:2] == (lat.size, lon.size)
+        tern = pj.add_ternary_legend(ax, ("x", "y", "z"))
+        assert len(tern.texts) == 3
+        dens = pj.add_inset_density(ax, {"x": comps[0], "y": comps[1], "z": comps[2]})
+        assert len(dens.patches) > 0 and dens.get_legend() is not None
+        fig.canvas.draw()
+        plt.close(fig)

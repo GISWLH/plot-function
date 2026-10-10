@@ -370,7 +370,193 @@ def fig_regional(out, dpi, pdf):
     return path
 
 
-FIGURES = {"regimes": fig_regimes, "sites": fig_sites, "era5": fig_era5, "regional": fig_regional}
+# ----------------------------------------------------------------------------- figure 5
+
+
+def _speckle(rng, shape, power):
+    """Sparse, pixel-scale texture in [0, 1] (lakes / small water bodies)."""
+    return rng.random(shape) ** power
+
+
+def fig_water(out, dpi, pdf):
+    """Pekel-style map with a right latitude profile and a bottom longitude profile."""
+    rng = np.random.default_rng(1984)
+    lon = np.arange(-179.75, 180, 0.5)
+    lat = np.arange(-55.75, 84, 0.5)
+    land = land_mask(lon, lat)
+    xx, yy = np.meshgrid(lon, lat)
+    boreal = np.exp(-((yy - 61) / 7.5) ** 2) * (
+        np.exp(-((xx + 95) / 30) ** 2) + 0.8 * np.exp(-((xx - 70) / 55) ** 2)
+        + 0.6 * np.exp(-((xx - 25) / 12) ** 2)
+    )
+    tropics = 0.55 * np.exp(-((yy + 3) / 6) ** 2) * (
+        np.exp(-((xx + 60) / 12) ** 2) + np.exp(-((xx - 22) / 8) ** 2)
+    )
+    lakes = 1.4 * np.exp(-((xx - 33) / 1.3) ** 2 - ((yy + 1) / 1.3) ** 2)  # one big lake
+    monsoon = 0.35 * np.exp(-((yy - 24) / 6) ** 2) * np.exp(-((xx - 88) / 14) ** 2)
+    patch = np.clip(smooth_field(rng, lon, lat, 400, (1, 4)) + 0.35, 0, None)  # lake districts
+    base = (boreal + tropics + monsoon) * patch * 1.6 + lakes
+    base = np.clip(base, 0, None) * land
+    permanent = np.clip(base * (0.1 + 1.6 * _speckle(rng, base.shape, 2.5)), 0, 1)
+    seasonal = np.clip((0.12 + 0.4 * tropics + 0.5 * monsoon) * land
+                       * _speckle(rng, base.shape, 6) * (base > 0.02), 0, 1)
+    maximum = np.clip(permanent + seasonal + 0.25 * base * rng.random(base.shape), 0, 1)
+    # change layers (gains positive, losses negative), synthetic
+    new_perm = permanent * 0.18 * _speckle(rng, base.shape, 4) * (1 + 3 * np.exp(-((yy - 45) / 8) ** 2))
+    lost_perm = permanent * 0.12 * _speckle(rng, base.shape, 4)
+    lost_perm += 0.5 * np.exp(-((xx - 59.5) / 1.3) ** 2 - ((yy - 45) / 1.1) ** 2) * land * _speckle(rng, base.shape, 1.5)  # a drying lake
+    new_seas = seasonal * 0.5 * _speckle(rng, base.shape, 3) + 0.05 * base * rng.random(base.shape)
+    lost_seas = seasonal * 0.35 * _speckle(rng, base.shape, 3)
+    net = new_perm + new_seas - lost_perm - lost_seas
+
+    k = 1e3  # 10^3 km^2
+    by = {name: pj.marginal_totals(v, lon, lat, scale=k) for name, v in {
+        "max": maximum, "perm": permanent, "seas": seasonal, "np": new_perm, "lp": lost_perm,
+        "ns": new_seas, "ls": lost_seas}.items()}
+
+    occ = np.where(land & (maximum > 0.01), permanent, np.nan)
+    occ_cmap, occ_norm = pj.discrete_cmap(
+        ["#e3eefa", "#b3cdef", "#7ea6e3", "#4a78d6", "#1f46c4", "#0c1f9e"],
+        [0.02, 0.1, 0.2, 0.35, 0.5, 0.7, 1.0], extend="neither")
+    chg = np.where(land & (np.abs(net) > 0.01), net, np.nan)
+    chg_cmap, chg_norm = pj.discrete_cmap(
+        ["#a1123a", "#d7708f", "#f2c4d1", "#f5f5f5", "#d8ec9f", "#9bcc4b", "#2e9a3c"],
+        [-0.3, -0.1, -0.03, -0.005, 0.005, 0.03, 0.1, 0.3], extend="neither")
+
+    grey = "#d4d4d4"
+    with pj.journal_style():
+        fig = plt.figure(figsize=pj.figsize("double", 1.0))
+        panels = [fig.add_axes([0.06, 0.635, 0.70, 0.33], projection=PC),
+                  fig.add_axes([0.06, 0.155, 0.70, 0.33], projection=PC)]
+        for i, ax in enumerate(panels):
+            ax.set_extent([-180, 180, -56, 84], crs=PC)
+            ax.set_facecolor(grey)  # ocean and no-data
+            pj.add_land(ax, color="white", borders=False, coast_width=0, zorder=0.5)
+            if i == 0:  # real Natural Earth rivers give the water map its texture
+                import cartopy.feature as cfeature
+
+                ax.add_feature(cfeature.RIVERS.with_scale("50m"), edgecolor="#3355cc",
+                               facecolor="none", linewidth=0.3, zorder=1.5)
+                ax.add_feature(cfeature.LAKES.with_scale("50m"), edgecolor="none",
+                               facecolor="#1f3fb0", zorder=1.5)
+            data, cmap, norm = (occ, occ_cmap, occ_norm) if i == 0 else (chg, chg_cmap, chg_norm)
+            ax.pcolormesh(lon, lat, data, cmap=cmap, norm=norm, transform=PC, zorder=1,
+                          rasterized=True)
+            pj.geo_ticks(ax, xticks=range(-180, 181, 30), yticks=range(-30, 61, 30),
+                         lat_labels=False, gridlines=False, degree_style="signed")
+            ax.set_xlabel("Longitude", labelpad=1)
+            ax.spines["geo"].set_visible(False)
+            pj.add_panel_label(ax, "ab"[i], style="{}", x=0.006, y=0.985, size=10)
+        pj.add_lat_lon_marginals(
+            panels[0], lat=lat, lon=lon,
+            lat_series={"Maximum\nwater extent": by["max"][0], "Permanent": by["perm"][0],
+                        "Seasonal": by["seas"][0]},
+            lon_series={"Maximum\nwater extent": by["max"][1], "Permanent": by["perm"][1],
+                        "Seasonal": by["seas"][1]},
+            fill=("Maximum\nwater extent",),
+            colors={"Permanent": "#1f4e9c", "Seasonal": "#7cc6e8"},
+            right_xlabel="Area (10$^3$ km$^2$)", bottom_ylabel="Area\n(10$^3$ km$^2$)",
+            lat_ticks=[-30, 0, 30, 60],
+        )
+        pj.add_lat_lon_marginals(
+            panels[1], lat=lat, lon=lon,
+            lat_series={"New permanent": by["np"][0], "Lost permanent": -by["lp"][0],
+                        "New seasonal": by["ns"][0], "Lost seasonal": -by["ls"][0]},
+            lon_series={"New permanent": by["np"][1], "Lost permanent": -by["lp"][1],
+                        "New seasonal": by["ns"][1], "Lost seasonal": -by["ls"][1]},
+            colors={"New permanent": "#2e9a3c", "Lost permanent": "#8b1538",
+                    "New seasonal": "#b7d63a", "Lost seasonal": "#e9a9bf"},
+            zero_line=True, right_xlabel="Area (10$^3$ km$^2$)",
+            bottom_ylabel="Area\n(10$^3$ km$^2$)", lat_ticks=[-30, 0, 30, 60],
+        )
+        footnote(fig, "Synthetic example data (seeded water fractions on Natural Earth land); "
+                      "layout after Pekel et al. (2016, Nature).", y=-0.012)
+        path = pj.save_figure(fig, out / "fig5_water_marginals.png", dpi=dpi)
+        if pdf:
+            pj.save_figure(fig, out / "fig5_water_marginals.pdf")
+        plt.close(fig)
+    return path
+
+
+# ----------------------------------------------------------------------------- figure 6
+
+
+def fig_ternary(out, dpi, pdf):
+    """Three-component (ternary) RGB map with density insets and a triangle colour key."""
+    rng = np.random.default_rng(314)
+    lon = np.arange(-179.75, 180, 0.5)
+    lat = np.arange(-55.75, 84, 0.5)
+    land = land_mask(lon, lat)
+    xx, yy = np.meshgrid(lon, lat)
+    ranges = [(14, 30), (9, 20), (50, 74)]
+
+    def uniform_field(n, scale, bias):
+        """Smooth field rank-transformed to [0, 1] plus pixel noise (texture)."""
+        f = smooth_field(rng, lon, lat, n, scale) + bias + 0.15 * rng.standard_normal(xx.shape)
+        z = (f - f.mean()) / f.std()
+        return 1.0 / (1.0 + np.exp(-0.9 * z))  # smooth, unimodal, no clipping spikes
+
+    tropical = np.exp(-(yy / 13) ** 2)
+    boreal = np.exp(-((yy - 52) / 10) ** 2)
+    u_lower = uniform_field(140, (4, 14), 1.6 * tropical)
+    u_middle = uniform_field(140, (4, 14), 0.9 * np.exp(-((yy - 30) / 10) ** 2) + 0.6 * boreal)
+    u_upper = uniform_field(140, (4, 14), 1.2 * np.exp(-((np.abs(yy) - 25) / 9) ** 2) + boreal)
+    lower, middle, upper = (lo + u * (hi - lo)
+                            for u, (lo, hi) in zip((u_lower, u_middle, u_upper), ranges))
+    # no data in deserts, ice and high latitudes (grey), as in the reference layout
+    dry = np.exp(-((yy - 23) / 8) ** 2) * (np.abs(xx - 20) < 60) + np.exp(-((yy + 25) / 6) ** 2) * (
+        np.abs(xx - 20) < 30)
+    vegetated = land & (yy < 60) & (yy > -50) & (dry < 0.55)
+    vegetated &= smooth_field(rng, lon, lat, 80, (6, 18)) > -0.5
+    for v in (lower, middle, upper):
+        v[~vegetated] = np.nan
+    rgba, used = pj.ternary_colors(lower, middle, upper)  # 2–98 % quantile stretch
+
+    with pj.journal_style():
+        fig = plt.figure(figsize=pj.figsize("double", 0.41))
+        ax = fig.add_axes([0.13, 0.02, 0.87, 0.97], projection=PC)
+        ax.set_extent([-180, 180, -56, 84], crs=PC)
+        pj.add_land(ax, color="#d3d3d3", borders=True, edgecolor="white", linewidth=0.6,
+                    coast_width=0, zorder=0.5)
+        ax.spines["geo"].set_visible(False)
+        pj.plot_rgb(ax, lon, lat, rgba, zorder=1)
+        import cartopy.feature as cfeature
+
+        ax.add_feature(cfeature.BORDERS.with_scale("110m"), edgecolor="white", linewidth=0.6,
+                       facecolor="none", zorder=2)
+        ax.text(0.03, 0.97, "a", transform=ax.transAxes, fontsize=13, fontweight="bold",
+                va="top", path_effects=pj._halo_effect(2.5))
+        dens = pj.add_inset_density(
+            ax, {"lower": lower, "middle": middle, "upper": upper}, bins=60,
+            bounds=(-0.105, 0.5, 0.2, 0.3), xticks=[0, 15, 30, 45, 60, 75],
+            xlabel="Accumulated\nfeature importance [%]",
+        )
+        dens.text(-0.2, 1.12, "b", transform=dens.transAxes, fontsize=13, fontweight="bold",
+                  va="top")
+        tern = pj.add_ternary_legend(
+            ax, tuple(f"{n} ({lo:.0f}–{hi:.0f}%)" for n, (lo, hi) in
+                      zip(("lower", "middle", "upper"), used)),
+            bounds=(-0.135, -0.02, 0.22, 0.36),
+        )
+        tern.text(0.0, 1.0, "c", transform=tern.transAxes, fontsize=13, fontweight="bold",
+                  va="top")
+        footnote(fig, "Synthetic example data (three seeded components); "
+                      "ternary layout after Nature-style feature-importance maps.", y=-0.01)
+        path = pj.save_figure(fig, out / "fig6_ternary.png", dpi=dpi)
+        if pdf:
+            pj.save_figure(fig, out / "fig6_ternary.pdf")
+        plt.close(fig)
+    return path
+
+
+FIGURES = {
+    "regimes": fig_regimes,
+    "sites": fig_sites,
+    "era5": fig_era5,
+    "regional": fig_regional,
+    "water": fig_water,
+    "ternary": fig_ternary,
+}
 
 
 def main():

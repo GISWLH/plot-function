@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0 — Unreleased
+
+- New `add_lat_lon_marginals`: a right latitude profile *and* a bottom longitude
+  profile locked to the map axes (grey filled envelope + coloured lines, y axis on
+  the right, legend beside it), with `cell_area_km2` / `marginal_totals` helpers.
+- New ternary (three-component) colouring: `ternary_colors`, `plot_rgb`,
+  `add_ternary_legend` (colour triangle with rotated edge labels) and
+  `add_inset_density`.
+- `geo_ticks(degree_style="signed")` for `−30°`-style labels.
+- Gallery: two new layouts (`fig5_water_marginals.png`, `fig6_ternary.png`);
+  `journal-global.png` redone as a two-row Robinson figure (annual mean and
+  July − January) with land/ocean zonal profiles and area-per-class histograms;
+  `journal-significance.png` redone as a 2 × 2 figure (stippling, hatching,
+  FDR-vs-uncorrected outlines, Benjamini–Hochberg diagnostic) on a smoother
+  synthetic ensemble with spatially correlated noise.
+
 ## 0.4.0 — Unreleased
 
 - New `plot_function.journal` module: Nature/Science-style typography

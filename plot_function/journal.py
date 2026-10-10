@@ -61,6 +61,13 @@ __all__ = [
     "add_panel_label",
     "add_size_legend",
     "save_figure",
+    "cell_area_km2",
+    "marginal_totals",
+    "add_lat_lon_marginals",
+    "ternary_colors",
+    "add_ternary_legend",
+    "add_inset_density",
+    "plot_rgb",
 ]
 
 INK = "#1a1a1a"
@@ -322,6 +329,7 @@ def geo_ticks(
     lat_labels=True,
     lon_labels=True,
     frame=True,
+    degree_style="hemisphere",
 ):
     """Clean ``60°E`` / ``40°N`` ticks and light dashed gridlines on a GeoAxes.
 
@@ -336,10 +344,14 @@ def geo_ticks(
     if rectangular and labels:
         if xticks is not None and lon_labels:
             ax.set_xticks(xticks, crs=ccrs.PlateCarree())
-            ax.xaxis.set_major_formatter(FuncFormatter(format_lon))
+            ax.xaxis.set_major_formatter(
+                FuncFormatter(format_lon if degree_style == "hemisphere" else _signed_lon)
+            )
         if yticks is not None and lat_labels:
             ax.set_yticks(yticks, crs=ccrs.PlateCarree())
-            ax.yaxis.set_major_formatter(FuncFormatter(format_lat))
+            ax.yaxis.set_major_formatter(
+                FuncFormatter(format_lat if degree_style == "hemisphere" else _signed_lat)
+            )
         ax.tick_params(
             which="major", length=2.5, width=0.5, labelsize=mpl.rcParams["xtick.labelsize"] + 0.5
         )
@@ -978,6 +990,344 @@ def save_figure(fig, path, *, dpi=600, formats=None, **kwargs):
         fig.savefig(target, **opts)
         paths.append(target)
     return paths[0] if len(paths) == 1 else paths
+
+
+
+# --------------------------------------------------------------------------- Pekel-style marginals
+
+
+def cell_area_km2(lon, lat):
+    """Area (km²) of each cell of a regular lon/lat grid, shape ``(len(lat), len(lon))``."""
+    lon, lat = np.asarray(lon, dtype=float), np.asarray(lat, dtype=float)
+    radius = 6371.0088
+    dlon = np.deg2rad(np.abs(np.gradient(lon))) if lon.size > 1 else np.array([np.deg2rad(1.0)])
+    half = np.abs(np.gradient(lat)) / 2 if lat.size > 1 else np.array([0.5])
+    top = np.deg2rad(np.clip(lat + half, -90, 90))
+    bottom = np.deg2rad(np.clip(lat - half, -90, 90))
+    band = radius**2 * np.abs(np.sin(top) - np.sin(bottom))
+    return band[:, None] * dlon[None, :]
+
+
+def marginal_totals(field, lon, lat, *, area=True, how="sum", scale=1.0):
+    """Collapse a ``(lat, lon)`` field to a latitude profile and a longitude profile.
+
+    With ``area=True`` the field is treated as a cell *fraction* (0–1) and multiplied by
+    the cell area in km², so ``how='sum'`` gives the area per latitude/longitude row,
+    e.g. water area as in Pekel et al. (2016).  ``scale`` divides the result (``1e3``
+    for 10³ km²).  Returns ``(by_lat, by_lon)``.
+    """
+    field = np.asarray(field, dtype=float)
+    values = field * cell_area_km2(lon, lat) if area else field
+    reducer = {"sum": np.nansum, "mean": np.nanmean}[how]
+    with np.errstate(all="ignore"):
+        return reducer(values, axis=1) / scale, reducer(values, axis=0) / scale
+
+
+def _signed_lat(value, _=None):
+    return "0°" if np.isclose(value, 0) else f"{value:g}°".replace("-", "\u2212")
+
+
+def _signed_lon(value, _=None):
+    return "0°" if np.isclose(value, 0) else f"{value:g}°".replace("-", "\u2212")
+
+
+def add_lat_lon_marginals(
+    ax,
+    *,
+    lat=None,
+    lat_series=None,
+    lon=None,
+    lon_series=None,
+    fill=(),
+    colors=None,
+    fill_color="#dadada",
+    fill_edge="#a6a6a6",
+    linewidth=0.9,
+    right_width=0.22,
+    right_pad=0.06,
+    bottom_height=0.42,
+    bottom_pad=0.17,
+    lat_ticks=None,
+    degree_style="signed",
+    right_xlabel=None,
+    bottom_ylabel=None,
+    latitude_label="Latitude",
+    right_xlim=None,
+    bottom_ylim=None,
+    legend=True,
+    legend_labels=None,
+    zero_line=False,
+    zorder=6,
+):
+    """Nature-style marginal panels: a latitude profile on the right *and* a longitude
+    profile below the map, both locked to the map's projected axes.
+
+    ``lat_series`` / ``lon_series`` are dicts ``{label: values}`` aligned with ``lat`` /
+    ``lon``.  Labels listed in ``fill`` are drawn as a grey filled envelope (e.g.
+    "Maximum water extent"); the others as coloured lines (``colors={label: c}``).
+    The bottom panel carries its y axis on the right and a legend to its right, as
+    in Pekel et al. (2016, *Nature*).  ``zero_line=True`` adds a 0 reference for
+    signed series such as gains/losses.  Returns ``(right_axes, bottom_axes)``; either
+    is ``None`` if its series are not given.
+    """
+    colors = dict(colors or {})
+    palette = ["#1f4e9c", "#7cc6e8", "#2ca02c", "#a1123a", "#c8e04a", "#e8a7bd"]
+    fmt_lat = _signed_lat if degree_style == "signed" else format_lat
+    right = bottom = None
+    handles = {}
+
+    def style(label, i):
+        return colors.get(label, palette[i % len(palette)])
+
+    if lat_series:
+        lat = np.asarray(lat, dtype=float)
+        right = ax.inset_axes([1 + right_pad, 0, right_width, 1], transform=ax.transAxes,
+                              zorder=zorder)
+        y = _proj_coord(ax, lat=lat)
+        for i, (label, values) in enumerate(lat_series.items()):
+            values = np.asarray(values, dtype=float)
+            if label in fill:
+                handles[label] = right.fill_betweenx(
+                    y, 0, values, facecolor=fill_color, edgecolor=fill_edge, lw=0.6, zorder=1
+                )
+            else:
+                handles[label] = right.plot(values, y, color=style(label, i), lw=linewidth,
+                                            zorder=3, solid_joinstyle="round")[0]
+        if zero_line:
+            right.axvline(0, color="#c0832f", lw=0.6, zorder=2)
+        for name, spine in right.spines.items():
+            spine.set_visible(name in ("left", "bottom"))
+            spine.set_linewidth(0.5)
+        right.patch.set_alpha(0)
+        ticks = np.asarray(
+            lat_ticks if lat_ticks is not None else np.arange(-60, 61, 30), dtype=float
+        )
+        ticks = ticks[(ticks >= np.nanmin(lat) - 1) & (ticks <= np.nanmax(lat) + 1)]
+        pos = _proj_coord(ax, lat=ticks)
+        right.yaxis.set_major_locator(FixedLocator(pos))
+        right.yaxis.set_major_formatter(
+            FuncFormatter(lambda v, _p: fmt_lat(ticks[int(np.argmin(np.abs(pos - v)))]))
+        )
+        right.yaxis.set_minor_locator(NullLocator())
+        if latitude_label:
+            right.set_ylabel(latitude_label)
+        right.xaxis.set_major_locator(MaxNLocator(4))
+        right.xaxis.set_major_formatter(clean_formatter())
+        if right_xlim is not None:
+            right.set_xlim(right_xlim)
+        elif not zero_line:
+            right.set_xlim(left=0)
+        if right_xlabel:
+            right.set_xlabel(right_xlabel)
+        right.tick_params(length=2.0, width=0.5, pad=1.5)
+        _lock(right, ax, "y")
+
+    if lon_series:
+        lon = np.asarray(lon, dtype=float)
+        bottom = ax.inset_axes([0, -bottom_pad - bottom_height, 1, bottom_height],
+                               transform=ax.transAxes, zorder=zorder)
+        x = _proj_coord(ax, lon=lon)
+        for i, (label, values) in enumerate(lon_series.items()):
+            values = np.asarray(values, dtype=float)
+            if label in fill:
+                handles.setdefault(label, None)
+                handles[label] = bottom.fill_between(
+                    x, 0, values, facecolor=fill_color, edgecolor=fill_edge, lw=0.6, zorder=1
+                )
+            else:
+                handles[label] = bottom.plot(x, values, color=style(label, i), lw=linewidth,
+                                             zorder=3, solid_joinstyle="round")[0]
+        if zero_line:
+            bottom.axhline(0, color="#c0832f", lw=0.6, zorder=2)
+        for name, spine in bottom.spines.items():
+            spine.set_visible(name in ("right", "bottom"))
+            spine.set_linewidth(0.5)
+        bottom.patch.set_alpha(0)
+        bottom.yaxis.tick_right()
+        bottom.yaxis.set_label_position("right")
+        bottom.tick_params(axis="x", bottom=False, labelbottom=False)
+        bottom.yaxis.set_major_locator(MaxNLocator(4, symmetric=zero_line))
+        bottom.yaxis.set_major_formatter(clean_formatter())
+        if bottom_ylim is not None:
+            bottom.set_ylim(bottom_ylim)
+        elif not zero_line:
+            bottom.set_ylim(bottom=0)
+        if bottom_ylabel:
+            bottom.set_ylabel(bottom_ylabel)
+        bottom.tick_params(length=2.0, width=0.5, pad=1.5)
+        _lock(bottom, ax, "x")
+        if legend:
+            order = [k for k in (legend_labels or handles) if handles.get(k) is not None]
+            bottom.legend(
+                [handles[k] for k in order], order, loc="center left",
+                bbox_to_anchor=(1.0 + right_pad + 0.035, 0.5),
+                bbox_transform=bottom.transAxes, frameon=False, handlelength=1.6,
+                borderaxespad=0,
+            )
+    return right, bottom
+
+
+def _lock(child, parent, which):
+    """Keep ``child``'s x or y limits identical to the map's, now and at every draw."""
+    original = child.draw
+
+    def sync():
+        if which == "y":
+            child.set_ylim(parent.get_ylim())
+        else:
+            child.set_xlim(parent.get_xlim())
+
+    def draw(renderer):
+        sync()
+        return original(renderer)
+
+    child.draw = draw
+    sync()
+
+
+# --------------------------------------------------------------------------- ternary colours
+
+TERNARY_CORNERS = ("#ff00ff", "#ffff00", "#00ffff")  # magenta, yellow, cyan (subtractive)
+
+
+def ternary_colors(a, b, c, *, ranges=None, corners=TERNARY_CORNERS, quantiles=(0.02, 0.98)):
+    """Map three components to RGBA by barycentric mixing of three corner colours.
+
+    Each component is first rescaled to [0, 1] over its ``range`` (``(lo, hi)``; by
+    default the ``quantiles`` of its finite values), then the three rescaled values are
+    normalised to proportions that weight the corner colours.  A pixel dominated by
+    ``a`` takes ``corners[0]``; balanced pixels tend to grey.  Cells where any component
+    is not finite are transparent.  Returns ``(rgba, ranges)``.
+    """
+    stack = np.stack([np.asarray(v, dtype=float) for v in (a, b, c)])
+    valid = np.isfinite(stack).all(axis=0)
+    if ranges is None:
+        ranges = [tuple(np.nanquantile(v[valid], quantiles)) if valid.any() else (0, 1)
+                  for v in stack]
+    scaled = np.empty_like(stack)
+    for i, (lo, hi) in enumerate(ranges):
+        scaled[i] = np.clip((stack[i] - lo) / ((hi - lo) or 1.0), 0, 1)
+    total = scaled.sum(axis=0)
+    with np.errstate(all="ignore"):
+        weights = np.where(total > 0, scaled / total, 1 / 3)
+    rgb_corners = np.array([mpl.colors.to_rgb(c) for c in corners])  # (3, 3)
+    rgb = np.tensordot(np.moveaxis(weights, 0, -1), rgb_corners, axes=1)
+    rgba = np.concatenate([np.clip(rgb, 0, 1), valid[..., None].astype(float)], axis=-1)
+    return rgba, [tuple(map(float, r)) for r in ranges]
+
+
+def plot_rgb(ax, lon, lat, rgba, *, transform=None, zorder=1, **kwargs):
+    """Draw an ``(lat, lon, 4)`` RGBA array on a GeoAxes (regular grid, cell centres)."""
+    lon, lat = np.asarray(lon, dtype=float), np.asarray(lat, dtype=float)
+    dx = abs(lon[1] - lon[0]) / 2 if lon.size > 1 else 0.5
+    dy = abs(lat[1] - lat[0]) / 2 if lat.size > 1 else 0.5
+    if lat[0] > lat[-1]:
+        lat, rgba = lat[::-1], rgba[::-1]
+    extent = [lon.min() - dx, lon.max() + dx, lat.min() - dy, lat.max() + dy]
+    return ax.imshow(rgba, origin="lower", extent=extent, transform=transform or ccrs.PlateCarree(),
+                     interpolation="nearest", zorder=zorder, **kwargs)
+
+
+def add_ternary_legend(
+    ax,
+    labels,
+    *,
+    corners=TERNARY_CORNERS,
+    bounds=(0.0, 0.0, 0.2, 0.3),
+    resolution=240,
+    fontsize=None,
+    zorder=9,
+    outline=False,
+):
+    """Triangular colour key for :func:`ternary_colors`, with labels along the edges.
+
+    Corner order matches the components: ``corners[0]`` bottom-right, ``corners[1]``
+    bottom-left, ``corners[2]`` top.  ``labels`` = (bottom edge, left edge, right edge),
+    e.g. ``("lower (14–30%)", "middle (9–20%)", "upper (50–74%)")``; edge labels are
+    rotated to run parallel to their edge.  Returns the inset axes.
+    """
+    child = ax.inset_axes(list(bounds), transform=ax.transAxes, zorder=zorder)
+    h = np.sqrt(3) / 2
+    xs = np.linspace(0, 1, resolution)
+    ys = np.linspace(0, h, int(resolution * h))
+    xx, yy = np.meshgrid(xs, ys)
+    # barycentric weights for vertices A=(1,0) [corner 0], B=(0,0) [corner 1], C=(.5,h) [2]
+    wc = yy / h
+    wa = xx - 0.5 * wc
+    wb = 1 - wa - wc
+    weights = np.stack([wa, wb, wc], axis=-1)
+    inside = (weights >= -1e-9).all(axis=-1)
+    rgb_corners = np.array([mpl.colors.to_rgb(c) for c in corners])
+    rgb = np.clip(np.clip(weights, 0, 1) @ rgb_corners, 0, 1)
+    rgba = np.concatenate([rgb, inside[..., None].astype(float)], axis=-1)
+    child.imshow(rgba, origin="lower", extent=[0, 1, 0, h], interpolation="bilinear")
+    if outline:
+        child.plot([0, 1, 0.5, 0], [0, 0, h, 0], color=INK, lw=0.5)
+    child.set_xlim(-0.08, 1.08)
+    child.set_ylim(-0.12, h + 0.04)
+    child.set_aspect("equal")
+    child.axis("off")
+    size = fontsize or mpl.rcParams["axes.labelsize"] + 0.5
+    bottom_label, left_label, right_label = labels
+    halo = _halo_effect()
+    child.text(0.5, -0.05, bottom_label, ha="center", va="top", fontsize=size,
+               path_effects=halo)
+    child.text(0.25 - 0.06, h / 2 + 0.035, left_label, ha="center", va="center", rotation=60,
+               rotation_mode="anchor", fontsize=size, path_effects=halo)
+    child.text(0.75 + 0.06, h / 2 + 0.035, right_label, ha="center", va="center", rotation=-60,
+               rotation_mode="anchor", fontsize=size, path_effects=halo)
+    return child
+
+
+def _halo_effect(width=2.2):
+    from matplotlib import patheffects
+
+    return [patheffects.withStroke(linewidth=width, foreground="white")]
+
+
+def add_inset_density(
+    ax,
+    groups,
+    *,
+    colors=None,
+    bins=40,
+    bounds=(0.0, 0.6, 0.2, 0.3),
+    xlabel=None,
+    ylabel="Density",
+    alpha=0.55,
+    legend=True,
+    xticks=None,
+    zorder=8,
+):
+    """Overlapping filled density histograms (e.g. the three ternary components)."""
+    names = list(groups)
+    arrays = [np.asarray(groups[n], dtype=float).ravel() for n in names]
+    arrays = [v[np.isfinite(v)] for v in arrays]
+    edges = np.histogram_bin_edges(np.concatenate(arrays), bins=bins)
+    colors = colors or ["#f05a5a", "#5aaa50", "#6a6af5"][: len(names)]
+    child = _inset(ax, list(bounds), zorder)
+    _clean_inset(child, "open")
+    for v, c, n in zip(arrays, colors, names):
+        dens, _ = np.histogram(v, bins=edges, density=True)
+        child.stairs(dens, edges, fill=True, color=c, alpha=alpha, label=n, lw=0)
+    span = edges[-1] - edges[0]
+    child.set_xlim(edges[0] - 0.02 * span, edges[-1] + 0.02 * span)
+    child.set_ylim(0, child.get_ylim()[1] * 1.08)
+    child.set_yticks([])
+    for name in ("left",):
+        child.spines[name].set_visible(True)
+    if xticks is not None:
+        child.set_xticks(xticks)
+    else:
+        child.xaxis.set_major_locator(MaxNLocator(5, integer=True))
+    if xlabel:
+        child.set_xlabel(xlabel)
+    if ylabel:
+        child.set_ylabel(ylabel)
+    if legend:
+        child.legend(loc="upper right", bbox_to_anchor=(1.0, 1.0), handlelength=1.4,
+                     handleheight=0.9, fontsize=mpl.rcParams["legend.fontsize"])
+    return child
 
 
 @contextlib.contextmanager
