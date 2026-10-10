@@ -21,8 +21,10 @@
 | :---: | :---: |
 | <img src="docs/gallery/fig1_regimes.png" alt="双色标分区图、打点、左下角柱状图与右侧纬向剖面"> | <img src="docs/gallery/fig2_sites.png" alt="站点图、对数直方图与累积曲线"> |
 | <img src="docs/gallery/fig3_era5_profile.png" alt="Robinson 投影与对齐的纬向剖面"> | <img src="docs/gallery/fig4_regional_significance.png" alt="区域打点与纹理显著性对比"> |
+| <img src="docs/gallery/fig5_water_marginals.png" alt="Pekel 风格：右侧纬度剖面 + 底部经度剖面的水体图"> | <img src="docs/gallery/fig6_ternary.png" alt="三元 RGB 地图、密度小图与三角形色标"> |
+| <img src="docs/assets/journal-global.png" alt="ERA5 年均与 7 月减 1 月，陆地 / 海洋纬向剖面"> | <img src="docs/assets/journal-significance.png" alt="打点、纹理、FDR 与未校正边界对比及 BH 诊断图"> |
 
-图 1、2、4 使用**合成示例数据**（图中已注明），图 3 使用仓库自带的 ERA5 1978 年数据。运行 `python examples/journal_figures.py` 可全部复现；最小示例见 `python examples/journal_quickstart.py`，用法见英文 [README](README.md#journal-toolkit) 与 [API 参考](docs/API.md#plot_functionjournal)。
+图 5 为 Pekel 等（2016, Nature）式布局：灰色无数据背景、白色陆地，右侧纬度剖面与底部经度剖面均与地图坐标严格对齐（`add_lat_lon_marginals`）；图 6 为三元（三分量）RGB 地图，含密度小图与带旋转边标签的三角色标（`ternary_colors`、`add_ternary_legend`、`add_inset_density`）。图 1、2、4、5、6 与显著性组图使用**合成示例数据**（图中已注明），图 3 与 Robinson 双联图使用仓库自带的 ERA5 1978 年数据。运行 `python examples/journal_figures.py` 可全部复现；最小示例见 `python examples/journal_quickstart.py`，用法见英文 [README](README.md#journal-toolkit) 与 [API 参考](docs/API.md#plot_functionjournal)。
 
 ## 快速开始
 

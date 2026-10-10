@@ -172,6 +172,13 @@ modify global `rcParams`; wrap figure code in `journal_style()`. Gallery:
 | `add_panel_label(ax, "a", style="({})")` | | `Text` |
 | `add_size_legend(ax, values, labels, scale=)` | `scale(value) -> marker area (pt²)` | `Legend` |
 | `save_figure(fig, path, dpi=600, formats=None)` | e.g. `formats=("png", "pdf")` | path(s) |
+| `cell_area_km2(lon, lat)` | 1-D cell-centre coordinates | `(n_lat, n_lon)` cell areas (km²) |
+| `marginal_totals(field, lon, lat, area=True, how="sum", scale=1.0)` | fraction/amount per cell; `how="sum"` or `"mean"` | `(by_lat, by_lon)` |
+| `add_lat_lon_marginals(ax, lat=, lat_series=, lon=, lon_series=, fill=, colors=, zero_line=)` | `{label: values}` dicts; labels in `fill` become a grey envelope | `(right_axes, bottom_axes)`: right latitude profile + bottom longitude profile (y axis on the right, legend beside it), both locked to the map |
+| `ternary_colors(a, b, c, ranges=None, corners=TERNARY_CORNERS, quantiles=(0.02, 0.98))` | three component arrays; `ranges` default to the 2–98 % quantiles | `(rgba, ranges)`; NaN → transparent |
+| `plot_rgb(ax, lon, lat, rgba)` | regular lon/lat grid | `AxesImage` |
+| `add_ternary_legend(ax, labels=(bottom, left, right), bounds=)` | corner order matches `ternary_colors` (a → bottom-right, b → bottom-left, c → top) | inset axes with the colour triangle and rotated edge labels |
+| `add_inset_density(ax, groups, colors=, bins=40, bounds=, xlabel=)` | `{label: values}` | inset axes with overlapping density histograms and legend |
 
 **Profile alignment.** Profile coordinates are transformed with
 `ax.projection.transform_points` at the central longitude (or the centre of
