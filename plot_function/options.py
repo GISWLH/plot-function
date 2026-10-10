@@ -11,9 +11,9 @@ class Profile:
     statistic: str = "mean"
     spread: str | None = "std"
     weights: Any = None
-    color: str = "#267f83"
-    width: float = 0.20
-    pad: float = 0.045
+    color: str = "#2b5d8c"
+    width: float = 0.16
+    pad: float = 0.03
     label: str | None = None
     reference: float | None = None
 
@@ -24,10 +24,12 @@ class Distribution:
     bins: Any = 18
     weights: Any = None
     density: bool = True
-    bounds: tuple = (0.045, 0.075, 0.27, 0.25)
-    color: str = "#267f83"
+    bounds: tuple = (0.06, 0.1, 0.2, 0.22)
+    color: str = "#3b6f8f"
     label: str | None = None
     show_mean: bool = True
+    background: str | None = "white"  # translucent backdrop over busy maps; None = clear
+    background_alpha: float = 0.8
 
 
 @dataclass(frozen=True)
@@ -39,8 +41,8 @@ class Significance:
     alpha: float = 0.05
     correction: str = "none"
     stride: int = 3
-    color: str = "#243e44"
-    size: float = 3.0
+    color: str = "#1a1a1a"
+    size: float = 1.2
     hatch: str = "...."
     label: str | None = None
     legend: bool = True

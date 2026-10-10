@@ -1,267 +1,187 @@
 <p align="center">
-  <img src="docs/assets/logo.png" width="72" alt="plot-function logo">
+  <img src="docs/brand/banner.png" alt="plot-function — journal-grade maps from NetCDF, in a few lines of Python" width="100%">
 </p>
 
-![plot-function — NetCDF in. Beautiful maps out.](docs/assets/header.png)
-
-<p align="center">
-  <b>English</b> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.ja.md">日本語</a>
-</p>
 <p align="center">
   <a href="https://github.com/GISWLH/plot-function/actions/workflows/tests.yml"><img src="https://github.com/GISWLH/plot-function/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
-  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square" alt="Python 3.10 or newer">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-78bda8?style=flat-square" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/GISWLH/plot-function?color=2b6ca3" alt="MIT license"></a>
+  <a href="https://github.com/GISWLH/plot-function/stargazers"><img src="https://img.shields.io/github/stars/GISWLH/plot-function?style=flat&logo=github&color=b5793a" alt="GitHub stars"></a>
+  <a href="https://github.com/GISWLH/plot-function/network/members"><img src="https://img.shields.io/github/forks/GISWLH/plot-function?style=flat&logo=github" alt="Forks"></a>
+  <a href="https://github.com/GISWLH/plot-function/commits/main"><img src="https://img.shields.io/github/last-commit/GISWLH/plot-function" alt="Last commit"></a>
+  <img src="https://img.shields.io/badge/built%20with-xarray%20%7C%20Cartopy%20%7C%20Matplotlib-1f2a30" alt="xarray | Cartopy | Matplotlib">
 </p>
 
-**Make a map from a NetCDF file in a few lines.** `plot-function` brings coordinate handling, geographic projections, colorbars, and export into a small Python API and command-line tool. It keeps the original **xarray → Cartopy → Matplotlib** approach, with full access to the resulting figure.
+<p align="center">
+  <b>English</b> · <a href="#中文简介">中文简介</a> · <a href="README.zh-CN.md">简体中文完整文档</a> · <a href="README.ja.md">日本語</a>
+  <br>
+  <a href="#gallery">Gallery</a> · <a href="#quick-start">Quick start</a> · <a href="#journal-toolkit">Journal toolkit</a> · <a href="docs/API.md">API</a> · <a href="docs/RESEARCH_FIGURES.md">Research-figure guide</a> · <a href="#citation">Cite</a>
+</p>
 
-No shapefile, GeoTIFF, or Salem installation is needed for the new workflow. Optional coastlines come from Cartopy's Natural Earth cache; set `coastlines=False` for completely offline plotting.
+**plot-function** turns NetCDF / xarray fields into figures that look like they came out of *Nature*, *Science* or *Nature Geoscience*:
+discrete diverging colour scales with triangle ends, stippling for low ensemble agreement, a lower-left statistics inset,
+a right-hand zonal-mean profile that is **aligned with the map latitudes on any projection**, clean `40°N` ticks, Arial 7–9 pt typography and 600-dpi export — in a few lines of Python, with every Matplotlib object still yours to edit.
 
-[Quick start](#quick-start) · [Gallery](#gallery) · [Your own data](#your-own-data) · [CLI](#command-line) · [API reference](docs/API.md)
+> ⭐ If it saves you an afternoon of fiddling with Cartopy, please **star the repo** — it helps other geoscientists find it.
+
+## Gallery
+
+| | |
+| :---: | :---: |
+| <a href="docs/gallery/fig1_regimes.png"><img src="docs/gallery/fig1_regimes.png" alt="Two-regime diverging map with stippling, stacked inset bars and aligned zonal profile"></a><br><sub><b>Regime map</b> · two BrBG-style scales · stippling · hatched inset bars · ensemble zonal profile</sub> | <a href="docs/gallery/fig2_sites.png"><img src="docs/gallery/fig2_sites.png" alt="Site map with cream land, sized markers and log histogram inset with cumulative curve"></a><br><sub><b>Site map</b> · cream land · sized markers · log histogram + cumulative curve · legends below</sub> |
+| <a href="docs/gallery/fig3_era5_profile.png"><img src="docs/gallery/fig3_era5_profile.png" alt="ERA5 July anomaly on Robinson with aligned latitude profile and histogram"></a><br><sub><b>Robinson + aligned profile</b> · real ERA5 1978 · inter-month IQR and range bands</sub> | <a href="docs/gallery/fig4_regional_significance.png"><img src="docs/gallery/fig4_regional_significance.png" alt="Two regional panels: stippling vs hatching for significance"></a><br><sub><b>Regional panels</b> · one shared scale · stippling vs hatching · per-panel profiles</sub> |
+
+<p align="center">
+  <img src="docs/assets/journal-global.png" width="49%" alt="plot_map: ERA5 annual mean with zonal profile and distribution inset">
+  <img src="docs/assets/journal-significance.png" width="49%" alt="plot_map: stippling, hatching and contour significance styles">
+</p>
+
+<sub>Figures 1, 2, 4 and the significance panel use <b>synthetic example data</b> (seeded, labelled in each figure); the others use the bundled ERA5 1978 monthly 2 m temperature file. Reproduce everything with <code>python examples/journal_figures.py</code> and <code>python examples/journal_gallery.py</code>.</sub>
+
+## Features
+
+- **One-call maps from NetCDF** — `plot_map("file.nc", "t2m", isel={"time": 0})` handles variable/dimension selection, coordinate normalisation, projection, colourbar and export.
+- **Journal typography** — `journal_style()` applies Arial/Helvetica (with Liberation/Nimbus fallbacks), 7–9 pt text, 0.5 pt lines, editable text in PDF/SVG; `figsize("single" | "double")` gives 89/183 mm column widths.
+- **Discrete colour scales** — `discrete_cmap()` returns a `(cmap, norm)` pair whose extend triangles take the darkest colours, exactly like printed atlases.
+- **Significance & agreement** — `add_stippling()` (staggered dot lattice) and `add_hatching()` from a mask, or `Significance(p_values, correction="fdr_bh")` in `plot_map`.
+- **Lower-left insets** — `add_inset_bars()` with hatched low-agreement fractions; `add_inset_histogram()` with stacked groups, a total outline, log bins and a cumulative curve on an offset twin axis. Labels get a white halo so they stay legible over the map.
+- **Aligned marginal profiles** — `add_latitude_profile()` / `add_longitude_profile()` push latitudes through the map projection, so 40°N on the profile is level with 40°N on Robinson or Equal Earth maps; IQR/ensemble bands, min–max envelopes or individual members.
+- **Cartographic polish** — `geo_ticks()` (degree labels, dashed light graticule), `add_land()` (cream land, thin grey borders), `add_size_legend()`, `add_panel_label()`, `save_figure(dpi=600)`.
+- **Batteries included** — CLI (`plot-function plot …`), offline tests, CI, and the original notebook helpers (`from utils import plot`) kept for backwards compatibility.
 
 ## Quick start
-
-Requires Python **3.10+**. Install from this repository; the commands below do not assume a PyPI release.
 
 ```bash
 git clone https://github.com/GISWLH/plot-function.git
 cd plot-function
-python -m venv .venv
-source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install -e .
+python -m pip install -e .          # Python 3.10+, not yet on PyPI
+python examples/journal_quickstart.py
 ```
 
-Use the bundled NetCDF file to plot the first monthly temperature field:
+**A complete map from the bundled NetCDF file:**
 
 ```python
-from plot_function import plot_map
-
-result = plot_map(
-    "data/ERA5temp_1978_monthly.nc",
-    variable="t2m",
-    isel={"time": 0},
-    offset=-273.15, units="°C",  # This file stores temperature in Kelvin.
-    cmap="RdYlBu_r",
-    title="January 1978 · 2 m air temperature",
-    output="january.png",
-)
-```
-
-First use of coastlines may download Natural Earth data. Add `coastlines=False` to avoid that download. In a notebook, display `result.figure`; in a Python GUI session, call `matplotlib.pyplot.show()`.
-
-Want a tiny example without external downloads or the bundled climate dataset?
-
-```bash
-python examples/quickstart.py
-```
-
-This creates a clearly labeled **synthetic** NetCDF field and a PNG in `examples/output/`, using only the core dependencies.
-
-## Research figures: statistics, context, and significance
-
-Build a complete composition with reusable option objects. The new layers work with the same NetCDF inputs and editable Matplotlib results.
-
-```python
-from plot_function import plot_map, Profile, Distribution, MapFeatures
+import numpy as np
+from plot_function import plot_map, Profile, Distribution
 
 result = plot_map(
     "data/ERA5temp_1978_monthly.nc", "t2m",
-    isel={"time": 6}, offset=-273.15, units="°C",
-    projection="platecarree", extent=[92, 142, 8, 53], cmap="RdYlBu_r",
-    profiles=[Profile(position="right", style="band"),
-              Profile(position="top", style="line", weights="coslat")],
+    reduce="time", offset=-273.15, units="°C",
+    cmap="RdYlBu_r", levels=np.arange(-40, 41, 5),
+    title="Annual-mean 2 m air temperature",
+    profiles=Profile(style="band", reference=0, label="Zonal mean ± 1 s.d."),
     distribution=Distribution(style="bars", weights="coslat", color="map"),
-    features=MapFeatures(rivers=True, lakes=True, borders=True, resolution="50m"),
-    title="East Asia · July 1978", figsize=(12, 9),
-    output="research-figure.png",
+    panel_label="a",
+    output="annual_mean.png", dpi=600,
 )
 ```
 
-| Layer | Styles and controls |
-| :--- | :--- |
-| Marginal profiles | Right/top; `line`, `band`, `bars`; mean or median; spatial SD or IQR; reference lines |
-| Distribution inset | Bottom-left by default; `bars`, `step`, `line`, `ecdf`; custom bins and placement; mean marker |
-| Weighting | Equal cells, cosine latitude, or explicitly aligned cell weights |
-| Significance | `stipple`, `hatch`, `contour`; supplied p-values or boolean masks; optional BH FDR correction |
-| Geographic detail | Rivers, lakes, borders, land/ocean backgrounds; 110m, 50m, or 10m Natural Earth layers |
-| Composition | Panel labels, shared color scales, editable axes, PNG/PDF/SVG export |
+## Journal toolkit
 
-![Global ERA5 map with a right-side mean and spatial spread profile and a weighted histogram](docs/assets/journal-global.png)
-
-<p align="center"><img src="docs/assets/journal-regional.png" width="760" alt="East Asia with mean and median profiles, a distribution inset, rivers, lakes and borders"></p>
-
-**Significance is an explicit statistical layer.** Supply p-values from a test appropriate to your data; the plotting library does not infer significance from map colors or sample size.
+`plot_function.journal` works with *any* Cartopy axes, so you can build fully custom multi-panel figures:
 
 ```python
-from plot_function import Significance
+import numpy as np, matplotlib.pyplot as plt, cartopy.crs as ccrs
+import plot_function.journal as pj
 
-# p_values must be a 2D DataArray on the same normalized grid as the map.
-# Or pass a NetCDF path with variable=, sel= and/or isel=.
-layer = result.add_significance(
-    Significance(p_values, style="stipple", alpha=0.05, correction="fdr_bh")
-)
-print(layer.statistics.attrs)  # Tested cells, significant cells, and critical p-value.
+lon, lat = np.arange(-179.5, 180, 1.0), np.arange(-59.5, 90, 1.0)
+field = (8 * np.sin(np.deg2rad(2 * lon))[None, :] * np.cos(np.deg2rad(lat))[:, None]
+         + 4 * np.sin(np.deg2rad(3 * lat))[:, None])          # example data
+low_agreement = np.abs(field) < 1.5
+
+with pj.journal_style():
+    fig = plt.figure(figsize=pj.figsize("double", 0.45))
+    ax = fig.add_axes([0.06, 0.24, 0.78, 0.72], projection=ccrs.PlateCarree())
+    ax.set_extent([-180, 180, -60, 90], crs=ccrs.PlateCarree())
+    cmap, norm = pj.discrete_cmap("BrBG", np.arange(-10, 10.1, 2.5), extend="both")
+    mesh = ax.pcolormesh(lon, lat, field, cmap=cmap, norm=norm, transform=ccrs.PlateCarree())
+    ax.coastlines(lw=0.3)
+    pj.geo_ticks(ax, xticks=range(-180, 181, 60), yticks=range(-40, 81, 20))
+    pj.add_stippling(ax, lon, lat, low_agreement, stride=3)
+    pj.add_inset_bars(ax, ["Drier", "Wetter"], [42, 58], hatched=[9, 12],
+                      colors=["#a6611a", "#018571"], ylabel="Area [%]")
+    pj.add_latitude_profile(ax, lat, field.mean(1), lower=np.percentile(field, 25, 1),
+                            upper=np.percentile(field, 75, 1), xlabel="Zonal mean")
+    pj.add_colorbar(mesh, ax, title="Example regime", label="Δ [units]")
+    pj.add_panel_label(ax, "a")
+    pj.save_figure(fig, "my_figure.png", dpi=600)      # or formats=("png", "pdf")
 ```
 
-The comparison below uses a **seeded synthetic Gaussian experiment**, not the ERA5 observations. Each panel uses exactly the same p-values and FDR decision; only the display style changes.
+| Helper | What it draws |
+| :--- | :--- |
+| `journal_style()`, `figsize()` | Temporary rcParams for 7–9 pt Arial-like figures; 89 / 120 / 183 mm widths |
+| `discrete_cmap(cmap, levels, extend)` | One colour per interval, darkest colours on the triangles |
+| `add_colorbar(mappable, ax, title=, label=)` | Slim bar, triangle ends, bold title above and label below |
+| `geo_ticks(ax, xticks=, yticks=)` | `60°E` / `40°N` ticks, light dashed graticule |
+| `add_stippling`, `add_hatching`, `hatch_patch` | Low-agreement / significance overlays and legend handles |
+| `add_inset_bars(..., hatched=)` | Category bars with hatched uncertain fractions |
+| `add_inset_histogram(groups, log=, cumulative=)` | Stacked histogram, total outline, cumulative twin axis |
+| `add_latitude_profile`, `add_longitude_profile` | Projection-aligned marginal profiles with bands |
+| `add_land`, `add_size_legend`, `add_panel_label`, `save_figure` | Cream land & borders, marker-size legend, **(a)** labels, 600 dpi |
 
-![Stippling, hatching and contour boundaries with three profile and inset styles, using a synthetic significance experiment](docs/assets/journal-significance.png)
+More: the [API reference](docs/API.md), the [research-figure guide](docs/RESEARCH_FIGURES.md) (profiles, distributions, FDR significance in `plot_map`) and the [migration notes](docs/MIGRATION.md).
 
-```bash
-python examples/journal_gallery.py
-# Entirely offline: omits coastlines and all downloaded geographic features.
-python examples/journal_gallery.py --offline --output examples/output/journal
-
-plot-function plot data/ERA5temp_1978_monthly.nc --variable t2m \
-  --isel '{"time": 6}' --profile right --profile-style band \
-  --distribution line --coslat --no-coastlines --output summary.png
-```
-
-Statistics are computed over finite grid-cell centers inside `extent`, or the full field when no extent is supplied. SD/IQR bands describe **spatial variability, not confidence intervals**. Cosine latitude approximates cell-area weights only on regular geographic grids; provide actual cell areas for irregular grids. Profiles have geographic coordinate scales; use Plate Carrée for direct alignment with map axes, since curved projections have different geometry. A frequency `line` is a histogram polygon, not a kernel density estimate. Features may require an initial download even when `coastlines=False`.
-
-The [research-figure guide](docs/RESEARCH_FIGURES.md) documents all options, FDR assumptions, inset placement, returned statistics, and custom layouts.
-
-## Gallery
-
-All four figures below are generated by [`examples/gallery.py`](examples/gallery.py) from the repository's **1978 ERA5 monthly 2 m air temperature NetCDF file**. No external shapefile or raster input is needed.
-
-### 01 · A global overview
-
-Robinson projection, restrained gridlines, discrete temperature intervals, and a readable horizontal colorbar.
-
-![Global temperature map: arithmetic mean of the twelve 1978 monthly fields](docs/assets/global-temperature.png)
-
-### 02 · Two seasons, one scale
-
-January and July share the same color limits, making a side-by-side comparison meaningful. A dark theme provides an alternative for presentations.
-
-![January and July 1978 temperature maps on a shared scale](docs/assets/seasons.png)
-
-### 03 · The seasonal difference
-
-An Equal Earth view with a symmetric, zero-centered color scale for **July minus January**. This is a seasonal difference within one year, not a climate trend or a climatological anomaly.
-
-![July minus January 1978 temperature difference](docs/assets/seasonal-contrast.png)
-
-### 04 · Regional detail
-
-A Lambert conformal view of East Asia with labeled isotherms. The same NetCDF field supports both global and regional figures.
-
-<p align="center"><img src="docs/assets/east-asia.png" width="660" alt="East Asia temperature in July 1978, with isotherms"></p>
-
-Rebuild the gallery:
+## Your own data & the CLI
 
 ```bash
-python examples/gallery.py
-# Offline alternative; preserves the checked-in gallery:
-python examples/gallery.py --no-coastlines --output examples/output/gallery
-```
-
-**How the demo is computed:** Kelvin is converted to Celsius by subtracting 273.15. The annual view is an equally weighted mean of 12 monthly means, not a day-weighted annual mean. Every fourth latitude/longitude point is used for 1° display spacing; the original data are unchanged. Coastlines are Natural Earth 110m. See [data and artwork notes](docs/assets/README.md).
-
-## Your own data
-
-Start by inspecting variable names, dimensions, and units:
-
-```bash
-plot-function inspect your-data.nc
+plot-function inspect your-data.nc              # list variables, dims, units
+plot-function plot data/ERA5temp_1978_monthly.nc --variable t2m --isel '{"time": 6}' \
+  --offset -273.15 --units '°C' --profile right --distribution bars --output july.png
 ```
 
 ```python
 from plot_function import open_field, plot_map
-
-# Explicitly choose a time and a vertical level when present.
-# Adapt these dimension names and values to your file.
-field = open_field(
-    "your-data.nc", variable="temperature",
-    isel={"time": 0}, sel={"level": 850},
-)
-result = plot_map(field, title="Temperature at 850 hPa", output="map.png")
+field = open_field("your-data.nc", variable="temperature", isel={"time": 0}, sel={"level": 850})
+plot_map(field, projection="platecarree", extent=[90, 145, 5, 55], output="map.pdf")
 ```
 
-For the bundled dataset, a temporal mean needs just one extra argument:
-
-```python
-result = plot_map(
-    "data/ERA5temp_1978_monthly.nc", variable="t2m",
-    reduce="time", statistic="mean",
-    offset=-273.15, units="°C",
-    projection="platecarree", extent=[90, 145, 5, 55],
-    cmap="RdYlBu_r", title="East Asia · 1978 monthly-mean average",
-)
-result.save("figures/east-asia.pdf")
-```
-
-| Need | Option |
-| :--- | :--- |
-| Select by position / coordinate label | `isel={"time": 0}` / `sel={"level": 850}` |
-| Aggregate an extra dimension | `reduce="time"`, `statistic="mean"` |
-| Aggregate several dimensions | `reduce=["time", "member"]` |
-| Use custom geographic coordinate names | `latitude="nav_lat", longitude="nav_lon"` |
-| Convert values explicitly | `scale=1, offset=-273.15, units="°C"` |
-| Focus on a region | `extent=[west, east, south, north]` |
-| Compare panels consistently | Set the same `levels` or `vmin` / `vmax` |
-| Change appearance | `theme="dark"`, `cmap="viridis"`, `plotfunc="contourf"` |
-| Use your existing layout | Pass a Cartopy `ax=`; its projection takes precedence |
-| Export | `output="map.png"` or `result.save("map.svg")` |
-
-Supported projection names are `robinson`, `platecarree`, `equalearth`, and `mollweide`. A Cartopy projection object also works. The returned `MapResult` exposes `.figure`, `.axes`, `.artist`, `.colorbar`, and `.data` for annotations, shared colorbars, and further analysis. Call `plt.close(result.figure)` in batch scripts.
-
-### Data contract
-
-- **Rectilinear geographic grids:** latitude and longitude must each be one-dimensional, finite, and contain at least two distinct values. CF `standard_name` / geographic `units` and common `lat`/`lon` or `latitude`/`longitude` names are recognized.
-- **Explicit scientific choices:** multiple fields require `variable=`; nonspatial dimensions with more than one value require selection or reduction. Reductions are unweighted and skip missing values. Supported statistics: `mean`, `median`, `min`, `max`, `sum`, `std`.
-- **Coordinate normalization:** latitude is sorted, longitude is wrapped to `[-180, 180)` and sorted; a redundant global 0°/360° endpoint is removed. Other duplicates are rejected.
-- **Missing values:** xarray decodes NetCDF fill values; nonfinite values are masked. An entirely missing field produces an actionable error.
-- **Bounded scope:** curvilinear grids, unstructured meshes, projected x/y grids in metres, and antimeridian-crossing regional grids/extents need preprocessing. The API does not reproject source grids or infer units, vertical levels, time weights, or area weights.
-- **Memory:** the selected/reduced 2D field is loaded before the file is closed. For large workflows, preprocess with xarray and pass a prepared `DataArray`.
-
-## Command line
-
-```bash
-plot-function plot data/ERA5temp_1978_monthly.nc \
-  --variable t2m --isel '{"time": 0}' \
-  --offset -273.15 --units '°C' --cmap RdYlBu_r \
-  --title 'January 1978' --output january.png
-
-# Headless, offline, regional monthly-mean average:
-plot-function plot data/ERA5temp_1978_monthly.nc \
-  --variable t2m --reduce time --projection platecarree \
-  --extent 90 145 5 55 --no-coastlines --output regional.png
-```
-
-`python -m plot_function` is equivalent to `plot-function`. Use `plot-function plot --help` for all options. CLI rendering uses Matplotlib's headless Agg backend. Selection arguments are JSON objects; quote them for your shell.
-
-## Existing notebooks still work
-
-```python
-from utils import plot              # Original import remains available.
-from plot_function import legacy   # The same helpers in the new package.
-```
-
-The low-level map, hatching, regional, and warming-panel helpers are retained. Bugs in coastline keyword forwarding, hatch inversion and return values, regional extents, legends, colorbar overrides, and profile labeling have been corrected. See [migration notes](docs/MIGRATION.md).
-
-Optional tools for the historical notebook are separate from the core install:
-
-```bash
-python -m pip install -e '.[notebook,legacy]'
-jupyter lab
-```
-
-[`plotbook.ipynb`](plotbook.ipynb) is the historical reference, including raster/shapefile examples. Its China-temperature section references the unbundled `data/tp/tmp_2022.nc`, so it cannot run end-to-end as distributed. Legacy China boundary helpers need the repository's `data/` files (or explicit shapefile paths); those large datasets are not included in the Python wheel. New users should start with the NetCDF examples above.
+`plot_map` returns a `MapResult` exposing `.figure`, `.axes`, `.artist`, `.colorbar`, `.data`, `.profiles` and `.distribution` for further editing. Rectilinear lat/lon grids are supported; see the [data contract](docs/API.md#data-contract) and [API reference](docs/API.md) for details. Existing notebooks keep working via `from utils import plot`.
 
 ## Development
 
 ```bash
 python -m pip install -e '.[dev]'
-pytest
-ruff check plot_function utils tests examples
-python examples/quickstart.py
-python -m build
+pytest && ruff check plot_function utils tests examples
+python examples/journal_figures.py --dpi 600 --pdf   # rebuild the gallery
 ```
 
-Tests cover NetCDF selection, coordinate and unit handling, rendering without network downloads, the CLI, and legacy regressions. GitHub Actions runs tests on Python 3.10 and 3.12. Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+## Links
 
-## Credits & license
+- 👤 Author: **Longhao Wang** — [homepage](https://giswlh.github.io/) · [GitHub @GISWLH](https://github.com/GISWLH) · [Google Scholar](https://scholar.google.com/citations?user=ei3oenUAAAAJ) · [ORCID](https://orcid.org/0000-0002-4642-4701) · [Hugging Face](https://huggingface.co/LonghaoWang)
+- 🌏 Related: [IPCC](https://github.com/GISWLH/IPCC) (IPCC-style climate visualisation) · [CAS-Canglong](https://github.com/GISWLH/CAS-Canglong) · [WeatherAI](https://github.com/GISWLH/WeatherAI) (weather AI model zoo) · [GeoAreaWeight](https://github.com/GISWLH/GeoAreaWeight) (area-weighted means) · [cartopy-robinson-lat-clip](https://github.com/GISWLH/cartopy-robinson-lat-clip)
+- 🐛 [Issues & feature requests](https://github.com/GISWLH/plot-function/issues) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
-Created by **Longhao Wang**. Built on [xarray](https://docs.xarray.dev/), [Cartopy](https://scitools.org.uk/cartopy/docs/latest/), [Matplotlib](https://matplotlib.org/), and [mplotutils](https://github.com/mathause/mplotutils). Software is licensed under [MIT](LICENSE). Dataset provenance, Natural Earth attribution, and the distinction between decorative artwork and computed plots are documented [here](docs/assets/README.md).
+## Citation
+
+If plot-function helped your paper, please cite it (GitHub's **“Cite this repository”** button reads [`CITATION.cff`](CITATION.cff)) and ⭐ star the project:
+
+```bibtex
+@software{wang_plot_function,
+  author  = {Wang, Longhao},
+  title   = {plot-function: journal-grade maps from NetCDF with xarray, Cartopy and Matplotlib},
+  url     = {https://github.com/GISWLH/plot-function},
+  version = {0.4.0},
+  license = {MIT}
+}
+```
+
+## Star history
+
+<a href="https://star-history.com/#GISWLH/plot-function&Date">
+  <img src="https://api.star-history.com/svg?repos=GISWLH/plot-function&type=Date" alt="Star history chart" width="600">
+</a>
+
+## 中文简介
+
+**plot-function** 让 NetCDF / xarray 数据几行代码就画出顶刊风格的地学地图：带三角端点的离散发散色标、低一致性打点（stippling）、左下角统计小图（分类柱状图 / 对数直方图 + 累积曲线）、右侧与地图纬度**严格对齐**的纬向平均剖面（任意投影，含 Robinson）、`40°N` 式坐标、Arial 7–9 pt 字体以及 600 dpi 导出。所有 Matplotlib 对象都可以继续修改。
+
+- **一行出图**：`plot_map("file.nc", "t2m", isel={"time": 0})`，自动处理变量、维度、坐标、投影、色标与导出。
+- **顶刊工具箱** `plot_function.journal`：`journal_style()` 字体规范、`discrete_cmap()` 离散色标、`add_stippling()` / `add_hatching()` 显著性、`add_inset_bars()` / `add_inset_histogram()` 左下角小图、`add_latitude_profile()` 右侧纬度剖面、`geo_ticks()` 经纬度刻度、`add_colorbar()` 色标、`save_figure()` 高分辨率导出。
+- **快速开始**：`python -m pip install -e .` 后运行 `python examples/journal_quickstart.py`；完整画廊见 `python examples/journal_figures.py`。
+- 示例图 1、2、4 与显著性示例使用**合成示例数据**（图中已注明），其余使用仓库自带的 ERA5 1978 月平均气温。
+
+完整中文文档见 [README.zh-CN.md](README.zh-CN.md)。觉得有用的话欢迎点个 ⭐ Star，也欢迎在论文中引用！
+
+## License
+
+[MIT](LICENSE) © Longhao Wang. Dataset provenance and Natural Earth attribution: [docs/assets/README.md](docs/assets/README.md). Logo and banner are hand-authored SVG line drawings in [`docs/brand/`](docs/brand/).

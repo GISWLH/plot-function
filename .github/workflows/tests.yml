@@ -21,4 +21,5 @@ jobs:
       - run: ruff check plot_function utils tests examples
       - run: pytest
       - run: python examples/quickstart.py
+      - run: python examples/journal_quickstart.py
       - run: python -m build
