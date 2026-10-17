@@ -1,3 +1,7 @@
+<!-- readme-visual-refresh:banner -->
+![plot-function — hand-drawn project banner](assets/readme/banner.svg)
+<!-- /readme-visual-refresh:banner -->
+
 <p align="center">
   <img src="docs/brand/banner.png" alt="plot-function — journal-grade maps from NetCDF, in a few lines of Python" width="100%">
 </p>
@@ -183,3 +187,7 @@ If plot-function helped your paper, please cite it (GitHub's **“Cite this repo
 ## License
 
 [MIT](LICENSE) © Longhao Wang. Dataset provenance and Natural Earth attribution: [docs/assets/README.md](docs/assets/README.md). Logo and banner are hand-authored SVG line drawings in [`docs/brand/`](docs/brand/).
+
+<!-- readme-visual-refresh:artwork-source -->
+[Editable banner artwork · Excalidraw](assets/readme/banner.excalidraw)
+<!-- /readme-visual-refresh:artwork-source -->
